@@ -184,9 +184,11 @@ async def handle_ws_message(writer, msg_str):
             player.assign_tasks(TASK_STATIONS)
             player.role = "crewmate"
             player.alive = True
-            player.hp = 100
-            player.x = 1350 + (len(room.players) * 20)
-            player.y = 700 + (len(room.players) * 15)
+            spawn_angle = len(room.players) * (2.0 * math.pi / 10.0)
+            player.x = 1350.0 + math.cos(spawn_angle) * 160.0
+            player.y = 700.0 + math.sin(spawn_angle) * 160.0
+            player.target_x = player.x
+            player.target_y = player.y
             assigned_task_objs = [t for t in TASK_STATIONS if t["id"] in player.assigned_tasks]
             await send_json(writer, {
                 "type": "game_started",

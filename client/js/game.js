@@ -67,6 +67,9 @@ class GameEngine {
         this.myPlayerId = playerId;
         this.resize();
         window.addEventListener("resize", () => this.resize());
+        window.addEventListener("orientationchange", () => {
+            setTimeout(() => this.resize(), 150);
+        });
         requestAnimationFrame((t) => this.renderLoop(t));
     }
 
@@ -281,6 +284,7 @@ class GameEngine {
                 p.weapon = pData.weapon;
                 p.gender = pData.gender || "boy";
                 p.character = pData.character || "matias";
+                p.color = pData.color || p.color;
                 p.score = pData.score;
                 p.kill_cd = pData.kill_cd;
                 p.in_vent = pData.in_vent;
@@ -782,11 +786,11 @@ class GameEngine {
     }
 
     drawFloor(ctx) {
-        ctx.fillStyle = "#0f172a";
+        ctx.fillStyle = "#0b1120";
         ctx.fillRect(0, 0, this.map.width, this.map.height);
 
-        // Sci-fi metallic floor tiles with rivets
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+        // General metallic floor tiles
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
         ctx.lineWidth = 1;
         const gridSize = 70;
         for (let x = 0; x <= this.map.width; x += gridSize) {
@@ -802,16 +806,48 @@ class GameEngine {
             ctx.stroke();
         }
 
+        // CAFETERIA CHECKERED TILE PATTERN (Central Hall 850, 350 to 1850, 1050)
+        const cafeTile = 50;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(850, 350, 1000, 700);
+        ctx.clip();
+
+        for (let cx = 850; cx < 1850; cx += cafeTile) {
+            for (let cy = 350; cy < 1050; cy += cafeTile) {
+                const isCheck = ((cx - 850) / cafeTile + (cy - 350) / cafeTile) % 2 === 0;
+                ctx.fillStyle = isCheck ? "#1e293b" : "#0f172a";
+                ctx.fillRect(cx, cy, cafeTile, cafeTile);
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.035)";
+                ctx.strokeRect(cx, cy, cafeTile, cafeTile);
+            }
+        }
+
+        // Central Meeting Table Circular Decal
+        ctx.strokeStyle = "rgba(241, 196, 15, 0.35)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(1350, 700, 135, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(0, 242, 254, 0.25)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(1350, 700, 150, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.restore();
+
         // Sector Markings on Floor
         ctx.font = "bold 24px 'Orbitron', sans-serif";
-        ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
         ctx.textAlign = "center";
-        ctx.fillText("⚡ REACTOR NUCLEAR", 320, 310);
-        ctx.fillText("🍽️ CAFETERÍA DE MATIAS & BRUS", 1350, 480);
-        ctx.fillText("🛏️ SALA DE DORMITORIOS", 2380, 320);
-        ctx.fillText("🔌 ELECTRICIDAD", 400, 1200);
-        ctx.fillText("🧭 NAVEGACIÓN ESTELAR", 2380, 1100);
-        ctx.fillText("🎵 SALA DE BAILE Y MÚSICA", 1370, 1490);
+        ctx.fillText("REACTOR NUCLEAR", 320, 310);
+        ctx.fillText("CAFETERÍA DE MATIAS & BRUS", 1350, 480);
+        ctx.fillText("SALA DE DORMITORIOS", 2380, 320);
+        ctx.fillText("ELECTRICIDAD", 400, 1200);
+        ctx.fillText("NAVEGACIÓN ESTELAR", 2380, 1100);
+        ctx.fillText("SALA DE BAILE Y MÚSICA", 1370, 1490);
     }
 
     drawSewerPipes(ctx) {
@@ -926,22 +962,20 @@ class GameEngine {
     drawRoomDecor(ctx) {
         const time = Date.now() / 1000;
 
-        // 1. NEVERA 3D (REFRIGERATOR) at (1180, 400, w: 65, h: 60)
-        this.drawFridge(ctx, 1180, 400, 65, 60, time);
+        // 1. MESA CENTRAL REDONDA DE REUNIONES CON BOTÓN DE EMERGENCIA at (1350, 700, r: 75)
+        this.drawCafeteriaMeetingTable(ctx, 1350, 700, 75, time);
 
-        // 2. ALACENA CON MICROONDAS Y PLATOS at (1740, 400, w: 65, h: 50)
-        this.drawMicrowave(ctx, 1740, 400, 65, 50, time);
+        // 2. NEVERA 3D (REFRIGERATOR) at (1180, 380, w: 70, h: 65)
+        this.drawFridge(ctx, 1180, 380, 70, 65, time);
 
-        // 3. MESA DE COMEDOR CON PLATOS HUMEANTES at (1280, 660, w: 160, h: 100)
-        this.drawDiningTable(ctx, 1280, 660, 160, 100, time);
+        // 3. ALACENA CON MICROONDAS Y PLATOS at (1730, 380, w: 70, h: 55)
+        this.drawMicrowave(ctx, 1730, 380, 70, 55, time);
 
-        // 4. MUEBLES / SOFÁ EN L Y MESA DE CENTRO at (1460, 860, w: 180, h: 65)
-        this.drawLivingRoomSofa(ctx, 1460, 860, 180, 65, time);
+        // 4. MESAS DE COMENSALES DE CAFETERÍA at (1000, 880) y (1570, 880)
+        this.drawDiningTable(ctx, 1000, 880, 130, 65, time);
+        this.drawDiningTable(ctx, 1570, 880, 130, 65, time);
 
-        // 5. TELEVISOR INTERACTIVO at (1500, 980, w: 100, h: 25)
-        this.drawInteractiveTV(ctx, 1500, 980, 100, 25, time);
-
-        // 6. LAVADORA AUTOMÁTICA CON TAMBOR GIRATORIO at (1930, 180, w: 60, h: 60)
+        // 5. LAVADORA AUTOMÁTICA CON TAMBOR GIRATORIO at (1930, 180, w: 60, h: 60)
         this.drawWashingMachine(ctx, 1930, 180, 60, 60, time);
 
         // 7. BARRAS BUFFET DE COMIDA at (980, 460) y (1580, 460)
@@ -955,6 +989,128 @@ class GameEngine {
 
         // 10. ESCENARIO DE MÚSICA Y BAILE
         this.drawMusicStage(ctx, time);
+    }
+
+    drawCafeteriaMeetingTable(ctx, cx, cy, r, time) {
+        ctx.save();
+
+        // 1. Stools around table perimeter
+        const stoolCount = 8;
+        for (let i = 0; i < stoolCount; i++) {
+            const sAngle = (i * Math.PI * 2) / stoolCount;
+            const sx = cx + Math.cos(sAngle) * (r + 18);
+            const sy = cy + Math.sin(sAngle) * (r + 18);
+
+            // Stool shadow
+            ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+            ctx.beginPath();
+            ctx.arc(sx + 2, sy + 3, 11, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Stool seat
+            ctx.fillStyle = "#334155";
+            ctx.beginPath();
+            ctx.arc(sx, sy, 11, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#f1c40f";
+            ctx.beginPath();
+            ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 2. Drop shadow under table
+        ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+        ctx.beginPath();
+        ctx.arc(cx + 4, cy + 6, r + 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 3. Heavy steel rim
+        const rimGrad = ctx.createRadialGradient(cx, cy, r - 15, cx, cy, r);
+        rimGrad.addColorStop(0, "#475569");
+        rimGrad.addColorStop(0.7, "#64748b");
+        rimGrad.addColorStop(1, "#334155");
+        ctx.fillStyle = rimGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#94a3b8";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // 4. Inner table surface (Warm beige futuristic tabletop)
+        const innerGrad = ctx.createRadialGradient(cx, cy - 20, 10, cx, cy, r - 12);
+        innerGrad.addColorStop(0, "#f8fafc");
+        innerGrad.addColorStop(0.7, "#e2e8f0");
+        innerGrad.addColorStop(1, "#cbd5e1");
+        ctx.fillStyle = innerGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Table segments / meeting divider lines
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.45)";
+        ctx.lineWidth = 1.2;
+        for (let i = 0; i < 4; i++) {
+            const rad = (i * Math.PI) / 2;
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(rad) * 35, cy + Math.sin(rad) * 35);
+            ctx.lineTo(cx + Math.cos(rad) * (r - 14), cy + Math.sin(rad) * (r - 14));
+            ctx.stroke();
+        }
+
+        // 5. Central Console Housing for Emergency Button
+        ctx.fillStyle = "#0f172a";
+        ctx.beginPath();
+        ctx.arc(cx, cy, 32, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#38bdf8";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Hazard stripes border
+        ctx.strokeStyle = "rgba(234, 179, 8, 0.7)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, 28, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 6. RED EMERGENCY BUTTON (Large, 3D and Pulsing)
+        const pulse = Math.sin(time * 3) * 0.15 + 0.85;
+        const btnGrad = ctx.createRadialGradient(cx - 3, cy - 4, 3, cx, cy, 18);
+        btnGrad.addColorStop(0, "#fca5a5");
+        btnGrad.addColorStop(0.35, "#ef4444");
+        btnGrad.addColorStop(1, "#991b1b");
+
+        ctx.fillStyle = btnGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 18 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        // Glass protective dome ring
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 24, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Glass reflection highlight
+        ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+        ctx.beginPath();
+        ctx.ellipse(cx - 7, cy - 8, 6, 3, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Label
+        ctx.font = "bold 9px 'Orbitron', sans-serif";
+        ctx.fillStyle = "#ef4444";
+        ctx.textAlign = "center";
+        ctx.fillText("BOTÓN DE EMERGENCIA", cx, cy + 46);
+
+        ctx.restore();
     }
 
     drawFridge(ctx, x, y, w, h, time) {
@@ -2258,8 +2414,8 @@ class GameEngine {
         const scaleX = lw / this.screenWidth;
         const scaleY = lh / this.screenHeight;
 
-        // Ambient space station night overlay
-        const ambientAlpha = (this.graphicsQuality === "ultra") ? 0.76 : 0.65;
+        // Ambient space station cafeteria overlay (clear and soft)
+        const ambientAlpha = (this.graphicsQuality === "ultra") ? 0.22 : 0.16;
         lCtx.fillStyle = `rgba(6, 10, 20, ${ambientAlpha})`;
         lCtx.fillRect(0, 0, lw, lh);
 
@@ -2332,23 +2488,41 @@ class GameEngine {
             lCtx.fill();
         });
 
-        // 3. PLAYER FLASHLIGHT / AURA
-        if (me && me.alive) {
-            const px = toLX(me.renderX);
-            const py = toLY(me.renderY);
-            const visionRadius = (me.role === "impostor" ? 340 : 250) * scaleX;
+        // 3. PLAYER FLASHLIGHT / AURA (FOR ALL ALIVE PLAYERS)
+        this.players.forEach(p => {
+            if (!p.alive || p.in_vent) return;
+            if (p.is_invisible && p.id !== this.myPlayerId) return;
 
-            const playerGrad = lCtx.createRadialGradient(px, py, 20 * scaleX, px, py, visionRadius);
+            const px = toLX(p.renderX);
+            const py = toLY(p.renderY);
+            const isLocal = (p.id === this.myPlayerId);
+            const baseRad = isLocal ? (p.role === "impostor" ? 330 : 260) : 210;
+            const visionRadius = baseRad * scaleX;
+
+            const playerGrad = lCtx.createRadialGradient(px, py, 15 * scaleX, px, py, visionRadius);
             playerGrad.addColorStop(0, "rgba(255, 255, 255, 0.98)");
-            playerGrad.addColorStop(0.4, "rgba(255, 255, 255, 0.8)");
-            playerGrad.addColorStop(0.8, "rgba(255, 255, 255, 0.25)");
+            playerGrad.addColorStop(0.4, "rgba(255, 255, 255, 0.85)");
+            playerGrad.addColorStop(0.8, "rgba(255, 255, 255, 0.3)");
             playerGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
 
             lCtx.fillStyle = playerGrad;
             lCtx.beginPath();
             lCtx.arc(px, py, visionRadius, 0, Math.PI * 2);
             lCtx.fill();
-        }
+        });
+
+        // 3.1 CAFETERIA CENTRAL TABLE ILLUMINATION
+        const tableLX = toLX(1350);
+        const tableLY = toLY(700);
+        const tableGrad = lCtx.createRadialGradient(tableLX, tableLY, 12 * scaleX, tableLX, tableLY, 260 * scaleX);
+        tableGrad.addColorStop(0, "rgba(255, 255, 255, 0.96)");
+        tableGrad.addColorStop(0.35, "rgba(255, 245, 190, 0.75)");
+        tableGrad.addColorStop(0.75, "rgba(255, 235, 150, 0.25)");
+        tableGrad.addColorStop(1, "rgba(255, 235, 150, 0)");
+        lCtx.fillStyle = tableGrad;
+        lCtx.beginPath();
+        lCtx.arc(tableLX, tableLY, 260 * scaleX, 0, Math.PI * 2);
+        lCtx.fill();
 
         // 4. TV SCREEN BLUE LIGHT CAST
         const tvX = toLX(1550);
@@ -3031,6 +3205,25 @@ class GameEngine {
             ctx.ellipse(0, 22, 18, 7, 0, 0, Math.PI * 2);
             ctx.fill();
 
+            // Cat tail for Gato Azul behind player
+            if (charKey === "gato_azul") {
+                const tailWag = Math.sin((p.walkAnim || 0) * 1.5 + Date.now() / 250) * 8;
+                ctx.strokeStyle = suitColor;
+                ctx.lineWidth = 5.5;
+                ctx.lineCap = "round";
+                ctx.beginPath();
+                ctx.moveTo(-10, 8 + walkOffset * 0.3);
+                ctx.bezierCurveTo(-22 + tailWag, 2, -26 + tailWag * 1.4, -6, -24 + tailWag, -12);
+                ctx.stroke();
+                // White tip of cat tail
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 4.5;
+                ctx.beginPath();
+                ctx.moveTo(-25 + tailWag * 1.2, -8);
+                ctx.lineTo(-24 + tailWag, -12);
+                ctx.stroke();
+            }
+
             // 2. Backpack / Oxygen tank with shading
             ctx.fillStyle = suitShade;
             ctx.fillRect(-22, -10 + walkOffset * 0.5, 7, 18);
@@ -3072,7 +3265,7 @@ class GameEngine {
             ctx.fillStyle = "#94a3b8"; // laces
             ctx.fillRect(5, 18 - walkOffset, 4, 1.5);
 
-            // 5. TORSO: SUIT WITH 3D SPHERICAL SHADING, STAR BADGE & METALLIC ZIPPER
+            // 5. TORSO: SUIT WITH 3D SPHERICAL SHADING, DISTINCT BADGE & METALLIC ZIPPER
             const torsoGrad = ctx.createRadialGradient(-5, -4 + walkOffset * 0.5, 3, 0, 1 + walkOffset * 0.5, 19);
             torsoGrad.addColorStop(0, theme.light || "#ffffff");
             torsoGrad.addColorStop(0.35, suitColor);
@@ -3082,20 +3275,140 @@ class GameEngine {
             ctx.arc(0, 1 + walkOffset * 0.5, 18, 0, Math.PI * 2);
             ctx.fill();
 
-            // Chest Star Badge (Golden Star on left chest from Gemini_Generated_Imagen.jfif)
-            ctx.fillStyle = "#ffd600";
-            ctx.strokeStyle = "#d97706";
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            const starX = -7;
-            const starY = 1 + walkOffset * 0.5;
-            for (let i = 0; i < 5; i++) {
-                ctx.lineTo(starX + Math.cos((18 + i * 72) * Math.PI / 180) * 4.5, starY - Math.sin((18 + i * 72) * Math.PI / 180) * 4.5);
-                ctx.lineTo(starX + Math.cos((54 + i * 72) * Math.PI / 180) * 2.2, starY - Math.sin((54 + i * 72) * Math.PI / 180) * 2.2);
+            // Chest Badge specific to character
+            const badgeX = -7;
+            const badgeY = 1 + walkOffset * 0.5;
+            ctx.save();
+            ctx.translate(badgeX, badgeY);
+
+            if (charKey === "matias") {
+                // Golden Star
+                ctx.fillStyle = "#ffd600";
+                ctx.strokeStyle = "#d97706";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 4.5, -Math.sin((18 + i * 72) * Math.PI / 180) * 4.5);
+                    ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 2.2, -Math.sin((54 + i * 72) * Math.PI / 180) * 2.2);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else if (charKey === "fantasma") {
+                // Cyan Cyber Arc Reactor / Core
+                ctx.fillStyle = "#00f2fe";
+                ctx.beginPath();
+                ctx.arc(0, 0, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(0, 0, 2, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (charKey === "gato_azul") {
+                // White Cat Paw Print
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.arc(0, 1, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(-2.5, -2, 1.2, 0, Math.PI * 2);
+                ctx.arc(0, -3.2, 1.2, 0, Math.PI * 2);
+                ctx.arc(2.5, -2, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (charKey === "reina_flor") {
+                // Pink Blossom Flower
+                ctx.fillStyle = "#f472b6";
+                for (let i = 0; i < 5; i++) {
+                    const ang = i * (Math.PI * 2 / 5);
+                    ctx.beginPath();
+                    ctx.arc(Math.cos(ang) * 2.8, Math.sin(ang) * 2.8, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = "#fef08a";
+                ctx.beginPath();
+                ctx.arc(0, 0, 1.8, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (charKey === "duende_verde") {
+                // Green 4-leaf Lucky Clover
+                ctx.fillStyle = "#4ade80";
+                for (let i = 0; i < 4; i++) {
+                    const ang = i * (Math.PI / 2);
+                    ctx.beginPath();
+                    ctx.arc(Math.cos(ang) * 2.4, Math.sin(ang) * 2.4, 1.8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = "#15803d";
+                ctx.beginPath();
+                ctx.arc(0, 0, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (charKey === "granjero_rojo") {
+                // Golden Wheat Sheaf
+                ctx.strokeStyle = "#fef08a";
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(-1, 4); ctx.lineTo(1, -4);
+                ctx.stroke();
+                ctx.fillStyle = "#fde047";
+                ctx.beginPath();
+                ctx.ellipse(2, -2, 1.5, 2.5, 0.4, 0, Math.PI * 2);
+                ctx.ellipse(-1, 0, 1.5, 2.5, -0.4, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (charKey === "sanador_naranja") {
+                // White Medical Cross
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(-1.5, -4, 3, 8);
+                ctx.fillRect(-4, -1.5, 8, 3);
+            } else if (charKey === "nina_blanca") {
+                // Ethereal Lavender Butterfly
+                ctx.fillStyle = "#c084fc";
+                ctx.beginPath();
+                ctx.ellipse(-2.5, -1.5, 2.2, 3, -0.4, 0, Math.PI * 2);
+                ctx.ellipse(2.5, -1.5, 2.2, 3, 0.4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#f472b6";
+                ctx.beginPath();
+                ctx.arc(0, 0, 1.3, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (charKey === "mistico_uva") {
+                // Golden Crescent Moon
+                ctx.fillStyle = "#fde047";
+                ctx.beginPath();
+                ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = theme.suitColor;
+                ctx.beginPath();
+                ctx.arc(1.5, -1, 3.2, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (charKey === "mago_negro") {
+                // Arcane Violet Diamond / Rune
+                ctx.fillStyle = "#c084fc";
+                ctx.beginPath();
+                ctx.moveTo(0, -4.5); ctx.lineTo(3.5, 0); ctx.lineTo(0, 4.5); ctx.lineTo(-3.5, 0);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = "#e879f9";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            } else if (charKey === "ciclope_astral") {
+                // Radiant Cosmic Starburst
+                ctx.fillStyle = "#38bdf8";
+                ctx.beginPath();
+                ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#38bdf8";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, -5); ctx.lineTo(0, 5);
+                ctx.moveTo(-5, 0); ctx.lineTo(5, 0);
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = "#ffd600";
+                ctx.beginPath();
+                ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+                ctx.fill();
             }
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
+            ctx.restore();
 
             // Metallic Front Zipper (Cierre metálico)
             ctx.strokeStyle = "#334155";
@@ -3128,46 +3441,149 @@ class GameEngine {
             ctx.arc(0, 6 + walkOffset * 0.5, 10, 0.2 * Math.PI, 0.8 * Math.PI);
             ctx.stroke();
 
-            // 6. 3D CHILD FACE (CARA DE NIÑO/A CON GRADIENTE ESFÉRICO)
+            // 6. 3D FACE WITH CHARACTER SPECIFICITY
             const faceGrad = ctx.createRadialGradient(-3, -12 + walkOffset * 0.5, 2, 0, -10 + walkOffset * 0.5, 13);
-            faceGrad.addColorStop(0, "#fff5eb");
-            faceGrad.addColorStop(0.5, "#ffdfba");
-            faceGrad.addColorStop(1, "#f5c596");
+            if (charKey === "fantasma") {
+                faceGrad.addColorStop(0, "#f8fafc");
+                faceGrad.addColorStop(0.5, "#e2e8f0");
+                faceGrad.addColorStop(1, "#cbd5e1");
+            } else {
+                faceGrad.addColorStop(0, "#fff5eb");
+                faceGrad.addColorStop(0.5, "#ffdfba");
+                faceGrad.addColorStop(1, "#f5c596");
+            }
             ctx.fillStyle = faceGrad;
             ctx.beginPath();
             ctx.arc(0, -10 + walkOffset * 0.5, 12, 0, Math.PI * 2);
             ctx.fill();
 
-            // Rosy cheeks
-            ctx.fillStyle = "rgba(248, 113, 113, 0.45)";
-            ctx.beginPath();
-            ctx.arc(-7, -7 + walkOffset * 0.5, 3, 0, Math.PI * 2);
-            ctx.arc(7, -7 + walkOffset * 0.5, 3, 0, Math.PI * 2);
-            ctx.fill();
+            // Rosy cheeks (except for cyber/robotic entities)
+            if (charKey !== "fantasma" && charKey !== "ciclope_astral") {
+                ctx.fillStyle = "rgba(248, 113, 113, 0.45)";
+                ctx.beginPath();
+                ctx.arc(-7, -7 + walkOffset * 0.5, 3, 0, Math.PI * 2);
+                ctx.arc(7, -7 + walkOffset * 0.5, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
 
-            // Big expressive cartoon eyes
-            ctx.fillStyle = "#ffffff";
-            ctx.beginPath();
-            ctx.ellipse(-4, -10 + walkOffset * 0.5, 3.5, 5, 0, 0, Math.PI * 2);
-            ctx.ellipse(4, -10 + walkOffset * 0.5, 3.5, 5, 0, 0, Math.PI * 2);
-            ctx.fill();
+            // Eyes / Visor Rendering
+            if (charKey === "ciclope_astral") {
+                // Large single cyclops cosmic eye
+                const eyeY = -10 + walkOffset * 0.5;
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.arc(0, eyeY, 6.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#38bdf8";
+                ctx.lineWidth = 1.6;
+                ctx.stroke();
 
-            ctx.fillStyle = "#1e293b";
-            ctx.beginPath();
-            ctx.arc(-3.5, -10 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
-            ctx.arc(4.5, -10 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
-            ctx.fill();
+                const irisGrad = ctx.createRadialGradient(0, eyeY, 1, 0, eyeY, 4.5);
+                irisGrad.addColorStop(0, "#38bdf8");
+                irisGrad.addColorStop(0.5, "#6366f1");
+                irisGrad.addColorStop(1, "#0f172a");
+                ctx.fillStyle = irisGrad;
+                ctx.beginPath();
+                ctx.arc(0, eyeY, 4.5, 0, Math.PI * 2);
+                ctx.fill();
 
-            // Eye shine highlights
-            ctx.fillStyle = "#ffffff";
-            ctx.beginPath();
-            ctx.arc(-4, -11 + walkOffset * 0.5, 1, 0, Math.PI * 2);
-            ctx.arc(4, -11 + walkOffset * 0.5, 1, 0, Math.PI * 2);
-            ctx.fill();
+                ctx.fillStyle = "#020617";
+                ctx.beginPath();
+                ctx.arc(0, eyeY, 2.2, 0, Math.PI * 2);
+                ctx.fill();
 
-            // GENDER DIFFERENTIATION: MUJER / NIÑA (Pestañas y Coletas con Lazos)
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.arc(1.2, eyeY - 1.5, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (charKey === "fantasma") {
+                // Cybernetic visor across eyes
+                const visorY = -11 + walkOffset * 0.5;
+                ctx.fillStyle = "#0f172a";
+                ctx.fillRect(-8, visorY - 3, 16, 6);
+                ctx.fillStyle = "#00f2fe";
+                ctx.fillRect(-7, visorY - 2, 14, 4);
+                // Visor scanning light
+                const scanX = Math.sin(Date.now() / 200) * 4.5;
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(scanX - 1.5, visorY - 2, 3, 4);
+            } else if (charKey === "mago_negro") {
+                // Mystical glowing violet eyes
+                const eyeY = -10 + walkOffset * 0.5;
+                ctx.fillStyle = "#c084fc";
+                ctx.beginPath();
+                ctx.ellipse(-4, eyeY, 2.5, 4, 0, 0, Math.PI * 2);
+                ctx.ellipse(4, eyeY, 2.5, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.arc(-4, eyeY - 1, 1, 0, Math.PI * 2);
+                ctx.arc(4, eyeY - 1, 1, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Standard expressive cartoon eyes
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.ellipse(-4, -10 + walkOffset * 0.5, 3.5, 5, 0, 0, Math.PI * 2);
+                ctx.ellipse(4, -10 + walkOffset * 0.5, 3.5, 5, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = "#1e293b";
+                ctx.beginPath();
+                ctx.arc(-3.5, -10 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
+                ctx.arc(4.5, -10 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.arc(-4, -11 + walkOffset * 0.5, 1, 0, Math.PI * 2);
+                ctx.arc(4, -11 + walkOffset * 0.5, 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Gato Azul Cat Whiskers and Nose
+            if (charKey === "gato_azul") {
+                ctx.strokeStyle = "#1e293b";
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                ctx.moveTo(-5, -6 + walkOffset * 0.5); ctx.lineTo(-13, -8 + walkOffset * 0.5);
+                ctx.moveTo(-5, -5 + walkOffset * 0.5); ctx.lineTo(-13, -4 + walkOffset * 0.5);
+                ctx.moveTo(5, -6 + walkOffset * 0.5); ctx.lineTo(13, -8 + walkOffset * 0.5);
+                ctx.moveTo(5, -5 + walkOffset * 0.5); ctx.lineTo(13, -4 + walkOffset * 0.5);
+                ctx.stroke();
+
+                ctx.fillStyle = "#f472b6";
+                ctx.beginPath();
+                ctx.arc(0, -6 + walkOffset * 0.5, 1.8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Duende Verde Pointed Elf Ears
+            if (charKey === "duende_verde") {
+                ctx.fillStyle = "#22c55e";
+                ctx.beginPath();
+                ctx.moveTo(-11, -11 + walkOffset * 0.5);
+                ctx.lineTo(-17, -15 + walkOffset * 0.5);
+                ctx.lineTo(-11, -7 + walkOffset * 0.5);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(11, -11 + walkOffset * 0.5);
+                ctx.lineTo(17, -15 + walkOffset * 0.5);
+                ctx.lineTo(11, -7 + walkOffset * 0.5);
+                ctx.fill();
+            }
+
+            // Místico Uva Third Eye Gem
+            if (charKey === "mistico_uva") {
+                ctx.fillStyle = "#d946ef";
+                ctx.beginPath();
+                ctx.arc(0, -17 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // GENDER & HAIR DIFFERENTIATION
             if (isGirl) {
-                // Eyelashes (Pestañas coquetas)
+                // Eyelashes (Pestañas)
                 ctx.strokeStyle = "#1e293b";
                 ctx.lineWidth = 1.2;
                 ctx.beginPath();
@@ -3183,7 +3599,7 @@ class GameEngine {
 
                 // Twintails / Pigtails
                 const pigtailBounce = Math.sin((p.walkAnim || 0) * 1.5) * 3;
-                ctx.fillStyle = "#5a3825";
+                ctx.fillStyle = (charKey === "nina_blanca") ? "#e2e8f0" : "#5a3825";
                 ctx.beginPath();
                 ctx.ellipse(-14, -10 + walkOffset * 0.5 + pigtailBounce, 5, 10, -0.4, 0, Math.PI * 2);
                 ctx.fill();
@@ -3191,21 +3607,21 @@ class GameEngine {
                 ctx.ellipse(14, -10 + walkOffset * 0.5 - pigtailBounce, 5, 10, 0.4, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Pink Ribbons / Bows 🎀
-                ctx.fillStyle = "#fd79a8";
+                // Bows
+                ctx.fillStyle = (charKey === "reina_flor") ? "#f472b6" : "#fd79a8";
                 ctx.beginPath();
                 ctx.arc(-13, -15 + walkOffset * 0.5 + pigtailBounce, 3, 0, Math.PI * 2);
                 ctx.arc(13, -15 + walkOffset * 0.5 - pigtailBounce, 3, 0, Math.PI * 2);
                 ctx.fill();
 
                 // Bangs
-                ctx.fillStyle = "#5a3825";
+                ctx.fillStyle = (charKey === "nina_blanca") ? "#e2e8f0" : "#5a3825";
                 ctx.beginPath();
                 ctx.arc(0, -17 + walkOffset * 0.5, 10, 0.9 * Math.PI, 0.1 * Math.PI);
                 ctx.fill();
             } else {
                 // Boyish spiky hair
-                ctx.fillStyle = "#362217";
+                ctx.fillStyle = (charKey === "fantasma") ? "#475569" : (charKey === "mago_negro" ? "#18181b" : "#362217");
                 ctx.beginPath();
                 ctx.arc(0, -18 + walkOffset * 0.5, 10, 0.8 * Math.PI, 0.2 * Math.PI);
                 ctx.lineTo(3, -24 + walkOffset * 0.5);
@@ -3214,18 +3630,46 @@ class GameEngine {
                 ctx.fill();
             }
 
-            // Friendly Smile
+            // Friendly Smile (when not disguised as impostor)
             ctx.strokeStyle = "#991b1b";
             ctx.lineWidth = 1.2;
             ctx.beginPath();
             ctx.arc(0, -6 + walkOffset * 0.5, 3.5, 0.1 * Math.PI, 0.9 * Math.PI);
             ctx.stroke();
 
-            // 7. Hat on Head
-            this.drawHat(ctx, p.hat, 0, -22 + walkOffset * 0.5);
+            // 7. Hat on Head (with signature default fallback for each character)
+            const defaultHats = {
+                matias: "mini_matias",
+                fantasma: "microscope_bot",
+                gato_azul: "cat_mask",
+                reina_flor: "crown_flower",
+                duende_verde: "leprechaun_gold",
+                granjero_rojo: "straw_hat",
+                sanador_naranja: "healing_plant",
+                nina_blanca: "butterfly_bow",
+                mistico_uva: "alien_antennas",
+                mago_negro: "magic_tophat",
+                ciclope_astral: "cyclops_eye"
+            };
+            const effectiveHat = p.hat || defaultHats[charKey] || null;
+            this.drawHat(ctx, effectiveHat, 0, -22 + walkOffset * 0.5);
 
-            // 8. Weapon in Hand
-            this.drawWeapon(ctx, p.weapon, 16, 6 + walkOffset * 0.5);
+            // 8. Weapon in Hand (with signature default fallback for each character)
+            const defaultWeapons = {
+                matias: "racket",
+                fantasma: "microscope",
+                gato_azul: "pan",
+                reina_flor: "magic_flower",
+                duende_verde: "gold_pot",
+                granjero_rojo: "wheat_fork",
+                sanador_naranja: "herbs_basket",
+                nina_blanca: "star_wand",
+                mistico_uva: "crystal_wand",
+                mago_negro: "magic_cane",
+                ciclope_astral: "crystal_orb"
+            };
+            const effectiveWeapon = p.weapon || defaultWeapons[charKey] || null;
+            this.drawWeapon(ctx, effectiveWeapon, 16, 6 + walkOffset * 0.5);
 
             // Impostor Disguise Vapor Swirls (Only visible to local impostor)
             if (p.is_disguised && p.id === this.myPlayerId) {
@@ -3262,13 +3706,26 @@ class GameEngine {
                 ctx.fillRect(-16, -34, (p.hp / 100) * 32, 4);
             }
 
-            // Name Tag with Gender icon badge
+            // Name Tag with Character Badge icon
             ctx.globalAlpha = 1.0;
             ctx.font = "bold 13px 'Rajdhani', sans-serif";
             ctx.textAlign = "center";
             ctx.fillStyle = p.role === "impostor" ? "#ff3366" : "#ffffff";
-            const genderBadge = isGirl ? "👧 " : "👦 ";
-            ctx.fillText(genderBadge + p.name, 0, -42);
+            const charIcons = {
+                matias: "👦 ",
+                fantasma: "🔬 ",
+                gato_azul: "🐱 ",
+                reina_flor: "🌸 ",
+                duende_verde: "🍀 ",
+                granjero_rojo: "🌾 ",
+                sanador_naranja: "🌿 ",
+                nina_blanca: "🦋 ",
+                mistico_uva: "🍇 ",
+                mago_negro: "🎩 ",
+                ciclope_astral: "🔮 "
+            };
+            const roleBadge = charIcons[charKey] || (isGirl ? "👧 " : "👦 ");
+            ctx.fillText(roleBadge + p.name, 0, -42);
 
             if (p.id === this.myPlayerId) {
                 ctx.fillStyle = "#00d2ff";

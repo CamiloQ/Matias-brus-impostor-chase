@@ -32,13 +32,13 @@ MAP_OBSTACLES = [
     {"x": 850, "y": 800, "w": 20, "h": 270, "type": "wall"},
     {"x": 1850, "y": 350, "w": 20, "h": 220, "type": "wall"},
     {"x": 1850, "y": 800, "w": 20, "h": 270, "type": "wall"},
-    {"x": 1280, "y": 660, "w": 160, "h": 100, "type": "table"}, # Mesa de comida con platos
-    {"x": 980, "y": 460, "w": 140, "h": 65, "type": "buffet"},   # Barra de comida / huevos y sartenes
-    {"x": 1580, "y": 460, "w": 140, "h": 65, "type": "buffet"},  # Barra de bebidas
-    {"x": 1180, "y": 400, "w": 65, "h": 60, "type": "fridge"},   # Nevera 3D de cocina con comida
-    {"x": 1740, "y": 400, "w": 65, "h": 50, "type": "microwave"},# Alacena con microondas y platos
-    {"x": 1460, "y": 860, "w": 180, "h": 65, "type": "sofa"},    # Muebles / Sofá en L de la sala
-    {"x": 1500, "y": 980, "w": 100, "h": 25, "type": "tv"},      # Televisor interactivo
+    {"x": 1270, "y": 620, "w": 160, "h": 160, "type": "meeting_table"}, # Mesa redonda de reuniones con boton de emergencia
+    {"x": 980, "y": 450, "w": 150, "h": 70, "type": "buffet"},   # Barra de comida / buffet caliente
+    {"x": 1570, "y": 450, "w": 150, "h": 70, "type": "buffet"},  # Barra de bebidas y refrescos
+    {"x": 1180, "y": 380, "w": 70, "h": 65, "type": "fridge"},   # Nevera de cafeteria con comida
+    {"x": 1730, "y": 380, "w": 70, "h": 55, "type": "microwave"},# Alacena con microondas
+    {"x": 1000, "y": 880, "w": 130, "h": 65, "type": "table"},   # Mesa de comensales 1
+    {"x": 1570, "y": 880, "w": 130, "h": 65, "type": "table"},   # Mesa de comensales 2
 
     # Sala de Habitación / Dormitorios (Top Right)
     {"x": 2050, "y": 100, "w": 650, "h": 20, "type": "wall"},
@@ -89,8 +89,8 @@ TASK_STATIONS = [
 ]
 
 WARDROBE_STATION = {"x": 2380, "y": 490, "radius": 60}
-FOOD_BUFFET = {"x": 1350, "y": 700, "radius": 65}
-EMERGENCY_BUTTON = {"x": 1350, "y": 520, "radius": 50}
+FOOD_BUFFET = {"x": 1050, "y": 480, "radius": 65}
+EMERGENCY_BUTTON = {"x": 1350, "y": 700, "radius": 55}
 
 VENTS = [
     {"id": "vent_1", "x": 480, "y": 160, "connected_to": "vent_2", "room": "Reactor"},
@@ -373,14 +373,16 @@ class ZombieCat:
 
 
 class LightOrb:
-    """Floating magic clone orb dropped when a zombie cat dies"""
-    def __init__(self, orb_id, x, y):
+    """Floating magic clone orb dropped when a zombie cat dies; shoots out with random impulse and slows down by friction"""
+    def __init__(self, orb_id, x, y, vx=0.0, vy=0.0):
         self.id = orb_id
-        self.x = x
-        self.y = y
+        self.x = float(x)
+        self.y = float(y)
+        self.vx = float(vx)
+        self.vy = float(vy)
         self.radius = 24
         self.lifetime = 30.0
-        self.arm_timer = 1.2  # 1.2s grace arming period: cannot trigger instantly from melee kill
+        self.arm_timer = 1.0  # 1.0s grace arming period
         self.armed = False
         self.active = True
 
@@ -392,6 +394,19 @@ class LightOrb:
         self.lifetime -= dt
         if self.lifetime <= 0:
             self.active = False
+            return
+
+        # Physical displacement and friction deceleration
+        if abs(self.vx) > 1.0 or abs(self.vy) > 1.0:
+            self.x += self.vx * dt
+            self.y += self.vy * dt
+            friction = max(0.0, 1.0 - 3.8 * dt)
+            self.vx *= friction
+            self.vy *= friction
+
+        # Keep orb inside map boundary
+        self.x = max(60.0, min(float(MAP_WIDTH - 60), self.x))
+        self.y = max(60.0, min(float(MAP_HEIGHT - 60), self.y))
 
     def to_dict(self):
         return {
@@ -535,8 +550,9 @@ class Player:
         self.hat = char_info["hat"]
         self.weapon = char_info["weapon"]
         self.skin = "onesie_tie"
-        self.x = 1350 + random.uniform(-100, 100)
-        self.y = 700 + random.uniform(-80, 80)
+        angle = (color_idx * (2.0 * math.pi / 10.0)) + random.uniform(-0.1, 0.1)
+        self.x = 1350.0 + math.cos(angle) * 160.0
+        self.y = 700.0 + math.sin(angle) * 160.0
         self.target_x = self.x
         self.target_y = self.y
         self.vx = 0.0
@@ -675,14 +691,13 @@ class GameRoom:
         color_idx = len(self.players)
         player = Player(player_id, name, color_idx, gender=gender, character=character)
         
-        # Spawn near friends already in the room so they see each other immediately
-        active_others = [p for p in self.players.values() if p.alive and p.id != player_id]
-        if active_others:
-            anchor = active_others[0]
-            player.x = max(120, min(MAP_WIDTH - 120, anchor.x + random.uniform(-65, 65)))
-            player.y = max(120, min(MAP_HEIGHT - 120, anchor.y + random.uniform(-65, 65)))
-            player.target_x = player.x
-            player.target_y = player.y
+        # Spawn in open cafeteria ring around the central meeting table
+        spawn_idx = len(self.players)
+        angle = (spawn_idx * (2.0 * math.pi / 10.0)) + random.uniform(-0.08, 0.08)
+        player.x = 1350.0 + math.cos(angle) * 160.0
+        player.y = 700.0 + math.sin(angle) * 160.0
+        player.target_x = player.x
+        player.target_y = player.y
 
         self.players[player_id] = player
         return player
@@ -717,7 +732,7 @@ class GameRoom:
             num_impostors = 1 if len(player_list) <= 6 else 2
             impostors = random.sample(player_list, num_impostors)
 
-        for p in player_list:
+        for idx, p in enumerate(player_list):
             p.alive = True
             p.hp = 100
             p.stamina = 100
@@ -728,10 +743,14 @@ class GameRoom:
             p.disguise = None
             p.disguise_timer = 0.0
             p.ghost_button_cooldown = 0.0
-            p.x = 1350 + random.uniform(-90, 90)
-            p.y = 700 + random.uniform(-70, 70)
-            p.vx = 0
-            p.vy = 0
+            # Open circular ring around the central meeting table (radius 160px)
+            angle = idx * (2.0 * math.pi / max(1, len(player_list)))
+            p.x = 1350.0 + math.cos(angle) * 160.0
+            p.y = 700.0 + math.sin(angle) * 160.0
+            p.target_x = p.x
+            p.target_y = p.y
+            p.vx = 0.0
+            p.vy = 0.0
             p.assign_tasks(TASK_STATIONS)
             if p in impostors:
                 p.role = "impostor"
@@ -898,7 +917,11 @@ class GameRoom:
                         cat.respawn_timer = 30.0
                         attacker.score += 200
                         orb_id = f"orb_{uuid.uuid4().hex[:6]}"
-                        self.light_orbs.append(LightOrb(orb_id, cat.x, cat.y))
+                        angle = random.uniform(0.0, 2.0 * math.pi)
+                        speed = random.uniform(260.0, 420.0)
+                        vx = math.cos(angle) * speed
+                        vy = math.sin(angle) * speed
+                        self.light_orbs.append(LightOrb(orb_id, cat.x, cat.y, vx, vy))
                     hit_info = {"type": "cat_hit", "cat_id": cat.id, "cat_dead": not cat.alive, "x": cat.x, "y": cat.y, "weapon": attacker.weapon}
                     return True, "¡Golpeaste al Gato Zombi!", hit_info
 

@@ -92,6 +92,7 @@ class UIManager {
         this.taskProgressFill = document.getElementById("task-progress-fill");
         this.taskList = document.getElementById("task-list");
         this.btnToggleTasks = document.getElementById("btn-toggle-tasks");
+        this.btnToggleChat = document.getElementById("btn-toggle-chat");
         this.orientationHint = document.getElementById("orientation-hint");
 
         // Chat
@@ -170,6 +171,22 @@ class UIManager {
         if (taskBarContainer && this.taskChecklist) {
             taskBarContainer.addEventListener("click", () => {
                 this.taskChecklist.classList.toggle("mobile-open");
+                this.vibrate(25);
+            });
+        }
+
+        // Toggle Chat on mobile/tablet
+        if (this.btnToggleChat) {
+            this.btnToggleChat.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const chatWidget = document.getElementById("chat-widget");
+                if (chatWidget) {
+                    chatWidget.classList.toggle("mobile-open");
+                    if (chatWidget.classList.contains("mobile-open")) {
+                        const chatInput = document.getElementById("chat-input");
+                        if (chatInput) chatInput.focus();
+                    }
+                }
                 this.vibrate(25);
             });
         }
@@ -283,31 +300,56 @@ class UIManager {
         this.selectedCharacter = "matias";
         this.selectedGender = "boy";
 
+        const CHAR_NAMES = {
+            "matias": "Matías",
+            "fantasma": "Fantasma",
+            "gato_azul": "Gato Azul",
+            "reina_flor": "Reina Flor",
+            "duende_verde": "Duende Verde",
+            "granjero_rojo": "Granjero Rojo",
+            "sanador_naranja": "Sanador",
+            "nina_blanca": "Niña Blanca",
+            "mistico_uva": "Místico Uva",
+            "mago_negro": "Mago Oscuro",
+            "ciclope_astral": "Cíclope Astral"
+        };
+
         const charButtons = document.querySelectorAll(".char-select-btn");
-        charButtons.forEach(btn => {
-            btn.addEventListener("click", () => {
-                const charId = btn.getAttribute("data-character");
-                if (charId) {
-                    this.selectedCharacter = charId;
-                    charButtons.forEach(b => b.classList.remove("active"));
-                    btn.classList.add("active");
+        const selectChar = (btn) => {
+            const charId = btn.getAttribute("data-character");
+            if (charId) {
+                this.selectedCharacter = charId;
+                charButtons.forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
 
-                    if (charId === "matias" && (!this.inputNickname.value || this.inputNickname.value === "Niña")) {
-                        this.inputNickname.value = "Matias";
-                    } else if (charId === "nina_blanca") {
-                        this.selectedGender = "girl";
-                        const gBtn = document.getElementById("btn-gender-girl");
-                        if (gBtn) gBtn.click();
-                    } else if (charId === "reina_flor") {
-                        this.selectedGender = "girl";
-                        const gBtn = document.getElementById("btn-gender-girl");
-                        if (gBtn) gBtn.click();
-                    }
-
-                    this.vibrate(15);
-                    window.soundEngine.playClick();
+                const currentVal = (this.inputNickname.value || "").trim();
+                const isDefault = !currentVal || currentVal === "Matias" || currentVal === "Niña" || Object.values(CHAR_NAMES).includes(currentVal);
+                if (isDefault && CHAR_NAMES[charId]) {
+                    this.inputNickname.value = CHAR_NAMES[charId];
                 }
-            });
+
+                if (charId === "nina_blanca" || charId === "reina_flor") {
+                    this.selectedGender = "girl";
+                    const gBtn = document.getElementById("btn-gender-girl");
+                    if (gBtn) gBtn.classList.add("active");
+                    const bBtn = document.getElementById("btn-gender-boy");
+                    if (bBtn) bBtn.classList.remove("active");
+                } else {
+                    this.selectedGender = "boy";
+                    const bBtn = document.getElementById("btn-gender-boy");
+                    if (bBtn) bBtn.classList.add("active");
+                    const gBtn = document.getElementById("btn-gender-girl");
+                    if (gBtn) gBtn.classList.remove("active");
+                }
+
+                this.vibrate(20);
+                if (window.soundEngine) window.soundEngine.playClick();
+            }
+        };
+
+        charButtons.forEach(btn => {
+            btn.addEventListener("pointerdown", () => selectChar(btn));
+            btn.addEventListener("click", () => selectChar(btn));
         });
 
         const btnGenderBoy = document.getElementById("btn-gender-boy");
@@ -440,14 +482,33 @@ class UIManager {
             });
         });
 
+        // Instant Touch/Pointer Action Binding Helper (Eliminates click delay on mobile)
+        const bindActionTap = (elem, handler) => {
+            if (!elem) return;
+            let lastTrigger = 0;
+            const trigger = (e) => {
+                if (elem.disabled) return;
+                const now = Date.now();
+                if (now - lastTrigger < 180) return; // 180ms debounce
+                lastTrigger = now;
+                if (e && e.cancelable && e.type !== "click") {
+                    e.preventDefault();
+                }
+                handler(e);
+            };
+
+            elem.addEventListener("pointerdown", trigger, { passive: false });
+            elem.addEventListener("click", trigger);
+        };
+
         // Punch Attack
-        this.btnPunch.addEventListener("click", () => {
+        bindActionTap(this.btnPunch, () => {
             this.vibrate(35);
             window.gameEngine.triggerPunch();
         });
 
         // Wardrobe button
-        this.btnWardrobeHud.addEventListener("click", () => {
+        bindActionTap(this.btnWardrobeHud, () => {
             this.vibrate(25);
             window.soundEngine.playClick();
             this.openWardrobeModal();
@@ -465,7 +526,7 @@ class UIManager {
         });
 
         // Action Buttons
-        this.btnUse.addEventListener("click", () => {
+        bindActionTap(this.btnUse, () => {
             this.vibrate(30);
             window.soundEngine.playClick();
             if (window.gameEngine.nearWardrobe) {
@@ -483,7 +544,7 @@ class UIManager {
             }
         });
 
-        this.btnReport.addEventListener("click", () => {
+        bindActionTap(this.btnReport, () => {
             this.vibrate([80, 40, 80]);
             window.soundEngine.playClick();
             if (window.gameEngine.nearbyBody) {
@@ -492,7 +553,7 @@ class UIManager {
             }
         });
 
-        this.btnKill.addEventListener("click", () => {
+        bindActionTap(this.btnKill, () => {
             if (window.gameEngine.nearbyVictim) {
                 this.vibrate(100);
                 window.soundEngine.playKill();
@@ -500,7 +561,7 @@ class UIManager {
             }
         });
 
-        this.btnVent.addEventListener("click", () => {
+        bindActionTap(this.btnVent, () => {
             if (window.gameEngine.nearbyVent) {
                 this.vibrate(30);
                 window.soundEngine.playVent();
@@ -509,7 +570,7 @@ class UIManager {
         });
 
         if (this.btnShapeshift) {
-            this.btnShapeshift.addEventListener("click", () => {
+            bindActionTap(this.btnShapeshift, () => {
                 this.vibrate(30);
                 window.soundEngine.playClick();
                 this.openShapeshiftModal();
@@ -523,7 +584,7 @@ class UIManager {
         }
 
         if (this.btnRemoveDisguise) {
-            this.btnRemoveDisguise.addEventListener("click", () => {
+            bindActionTap(this.btnRemoveDisguise, () => {
                 this.vibrate(25);
                 window.soundEngine.playClick();
                 window.network.sendShapeshift("");
@@ -532,7 +593,7 @@ class UIManager {
         }
 
         if (this.btnGhostInvis) {
-            this.btnGhostInvis.addEventListener("click", () => {
+            bindActionTap(this.btnGhostInvis, () => {
                 this.vibrate(40);
                 window.soundEngine.playClick();
                 window.network.sendGhostDropInvis();
@@ -842,6 +903,18 @@ class UIManager {
             div.innerHTML = `<span class="chat-sender" style="color: ${msg.color?.hex || '#00d2ff'}">${msg.name}:</span> <span>${msg.text}</span>`;
             this.chatMessages.appendChild(div);
             this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+
+            const chatWidget = document.getElementById("chat-widget");
+            if (this.btnToggleChat && chatWidget && !chatWidget.classList.contains("mobile-open")) {
+                this.btnToggleChat.style.background = "rgba(0, 242, 254, 0.45)";
+                this.btnToggleChat.style.borderColor = "#00f2fe";
+                setTimeout(() => {
+                    if (this.btnToggleChat) {
+                        this.btnToggleChat.style.background = "";
+                        this.btnToggleChat.style.borderColor = "";
+                    }
+                }, 3000);
+            }
         });
 
         window.network.on("sound_event", (evt) => {
@@ -1382,91 +1455,80 @@ class UIManager {
     }
 
     setupDynamicFloatingJoystick() {
-        // Floating Joystick: Spawns directly under the thumb anywhere on the left side of the screen
-        let activeTouchId = null;
+        let activePointerId = null;
         let origin = { x: 0, y: 0 };
         const maxDist = 45;
 
-        const onTouchStart = (e) => {
-            if (activeTouchId !== null) return;
-            // Only allow joystick movement during active gameplay
-            if (window.gameEngine && window.gameEngine.gameState !== "PLAYING") return;
-            if (e.cancelable) e.preventDefault();
+        const isInGame = () => {
+            if (!window.gameEngine) return false;
+            const lobbyEl = document.getElementById("lobby-screen");
+            const isLobbyVisible = lobbyEl && !lobbyEl.classList.contains("hidden");
+            return !isLobbyVisible && window.gameEngine.gameState !== "MEETING" && window.gameEngine.gameState !== "GAME_OVER";
+        };
 
-            const touch = e.changedTouches[0];
-            activeTouchId = touch.identifier;
+        const onPointerDown = (e) => {
+            if (activePointerId !== null) return;
+            if (!isInGame()) return;
+            if (e.pointerType === "mouse" && e.button !== 0) return;
+
+            activePointerId = e.pointerId;
+            try { this.touchZone.setPointerCapture(e.pointerId); } catch (_) {}
 
             const rect = this.touchZone.getBoundingClientRect();
             origin = {
-                x: touch.clientX - rect.left,
-                y: touch.clientY - rect.top
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
             };
 
-            // Position base under thumb and reveal
             this.joystickBase.style.left = `${origin.x}px`;
             this.joystickBase.style.top = `${origin.y}px`;
             this.joystickBase.classList.remove("hidden");
             this.joystickStick.style.transform = "translate(0px, 0px)";
             this.joystickVector = { x: 0, y: 0 };
-            if (window.gameEngine) {
-                window.gameEngine.updateInputVector();
-            }
+            if (window.gameEngine) window.gameEngine.updateInputVector();
         };
 
-        const onTouchMove = (e) => {
-            if (activeTouchId === null) return;
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const touch = e.changedTouches[i];
-                if (touch.identifier === activeTouchId) {
-                    if (e.cancelable) e.preventDefault();
-                    const rect = this.touchZone.getBoundingClientRect();
-                    const touchX = touch.clientX - rect.left;
-                    const touchY = touch.clientY - rect.top;
-                    const dx = touchX - origin.x;
-                    const dy = touchY - origin.y;
-                    const dist = Math.hypot(dx, dy);
-                    const clampedDist = Math.min(dist, maxDist);
-                    const angle = Math.atan2(dy, dx);
+        const onPointerMove = (e) => {
+            if (activePointerId !== e.pointerId) return;
+            const rect = this.touchZone.getBoundingClientRect();
+            const touchX = e.clientX - rect.left;
+            const touchY = e.clientY - rect.top;
+            const dx = touchX - origin.x;
+            const dy = touchY - origin.y;
+            const dist = Math.hypot(dx, dy);
+            const clampedDist = Math.min(dist, maxDist);
+            const angle = Math.atan2(dy, dx);
 
-                    const sx = Math.cos(angle) * clampedDist;
-                    const sy = Math.sin(angle) * clampedDist;
+            const sx = Math.cos(angle) * clampedDist;
+            const sy = Math.sin(angle) * clampedDist;
 
-                    this.joystickStick.style.transform = `translate(${sx}px, ${sy}px)`;
-                    this.joystickVector = {
-                        x: sx / maxDist,
-                        y: sy / maxDist
-                    };
-                    if (window.gameEngine) {
-                        window.gameEngine.updateInputVector();
-                    }
-                    break;
-                }
-            }
+            this.joystickStick.style.transform = `translate(${sx}px, ${sy}px)`;
+            this.joystickVector = {
+                x: sx / maxDist,
+                y: sy / maxDist
+            };
+            if (window.gameEngine) window.gameEngine.updateInputVector();
         };
 
-        const onTouchEnd = (e) => {
-            if (activeTouchId === null) return;
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const touch = e.changedTouches[i];
-                if (touch.identifier === activeTouchId) {
-                    if (e.cancelable) e.preventDefault();
-                    activeTouchId = null;
-                    this.joystickBase.classList.add("hidden");
-                    this.joystickStick.style.transform = "translate(0px, 0px)";
-                    this.joystickVector = { x: 0, y: 0 };
-                    if (window.gameEngine) {
-                        window.gameEngine.updateInputVector();
-                    }
-                    break;
-                }
-            }
+        const onPointerUp = (e) => {
+            if (activePointerId !== e.pointerId) return;
+            try { this.touchZone.releasePointerCapture(e.pointerId); } catch (_) {}
+            activePointerId = null;
+            this.joystickBase.classList.add("hidden");
+            this.joystickStick.style.transform = "translate(0px, 0px)";
+            this.joystickVector = { x: 0, y: 0 };
+            if (window.gameEngine) window.gameEngine.updateInputVector();
         };
 
-        this.touchZone.addEventListener("touchstart", onTouchStart, { passive: false });
-        window.addEventListener("touchmove", onTouchMove, { passive: false });
-        window.addEventListener("touchend", onTouchEnd, { passive: false });
-        window.addEventListener("touchcancel", onTouchEnd, { passive: false });
-    }
+        this.touchZone.addEventListener("pointerdown", onPointerDown);
+        this.touchZone.addEventListener("pointermove", onPointerMove);
+        this.touchZone.addEventListener("pointerup", onPointerUp);
+        this.touchZone.addEventListener("pointercancel", onPointerUp);
+
+        // Fallback for older iOS touch events
+        this.touchZone.addEventListener("touchstart", (e) => {
+            if (e.cancelable) e.preventDefault();
+        }, { passive: false });
 }
 
 window.uiManager = new UIManager();

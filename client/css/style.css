@@ -448,6 +448,9 @@ canvas#gameCanvas {
     padding-top: max(20px, env(safe-area-inset-top));
     padding-bottom: max(20px, env(safe-area-inset-bottom));
 }
+.role-overlay {
+    pointer-events: none !important;
+}
 
 .lobby-card, .waiting-card, .modal-box {
     background: var(--card-bg);
@@ -1139,6 +1142,24 @@ canvas#gameCanvas {
 /* Mobile Portrait & Small Screens adjustments */
 @media (max-width: 768px) {
     #chat-widget { display: none; }
+    #chat-widget.mobile-open {
+        display: flex !important;
+        position: fixed;
+        top: 52px;
+        left: 10px;
+        width: min(280px, 86vw);
+        height: 190px;
+        z-index: 260;
+        background: rgba(13, 17, 23, 0.94);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.9);
+        border: 1px solid rgba(0, 242, 254, 0.4);
+        border-radius: 12px;
+        animation: fadeIn 0.2s ease-out;
+    }
+    #chat-widget.mobile-open #chat-messages {
+        height: 140px;
+    }
     #task-checklist {
         display: none;
     }
@@ -1280,6 +1301,63 @@ canvas#gameCanvas {
 @media (orientation: landscape) {
     .orientation-toast {
         display: none !important;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+    #task-checklist {
+        display: none;
+    }
+    #task-checklist.mobile-open {
+        display: block !important;
+        position: fixed;
+        top: 44px;
+        left: 10px;
+        max-width: 250px;
+        max-height: 230px;
+        overflow-y: auto;
+        z-index: 250;
+    }
+    #action-controls {
+        position: fixed;
+        bottom: max(6px, env(safe-area-inset-bottom));
+        right: max(6px, env(safe-area-inset-right));
+        grid-template-columns: repeat(3, 48px);
+        gap: 6px;
+        z-index: 50;
+    }
+    .action-btn {
+        width: 48px;
+        height: 48px;
+    }
+    .btn-icon {
+        font-size: 1.05rem;
+    }
+    .btn-text {
+        font-size: 0.48rem;
+    }
+    .cd-timer {
+        font-size: 0.52rem;
+    }
+    #top-bar {
+        padding: 2px 8px;
+        gap: 6px;
+        height: 38px;
+    }
+    .room-pill {
+        display: none;
+    }
+    #chat-widget {
+        display: none;
+    }
+    #chat-widget.mobile-open {
+        display: flex !important;
+        position: fixed;
+        top: 42px;
+        left: 10px;
+        width: 240px;
+        height: 175px;
+        z-index: 260;
     }
 }
 
