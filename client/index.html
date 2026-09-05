@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Matias & Brus: Impostor CHASE - Móvil & Web</title>
+    
+    <!-- PWA & Mobile Web App Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+    <meta name="theme-color" content="#f1c40f">
+
+    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Canvas Layer -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Top Status Bar (In Game) -->
+        <div id="top-bar" class="hud-element hidden">
+            <div class="task-bar-container">
+                <span class="bar-label">PROGRESO TAREAS</span>
+                <div class="bar-track">
+                    <div id="task-progress-fill" style="width: 0%;"></div>
+                </div>
+            </div>
+            <div class="stats-pill">
+                <span>⭐ Puntos: <strong id="score-display">0</strong></span>
+            </div>
+            <div class="room-pill">
+                <span id="current-room-name">CAFETERÍA MATIAS & BRUS</span>
+            </div>
+            <div class="ping-pill">
+                <span class="ping-dot"></span>
+                <span id="ping-display">-- ms</span>
+            </div>
+            <!-- Graphics quality toggle button -->
+            <button id="btn-gfx-quality" class="gfx-pill-btn" title="Calidad Gráfica">✨ ULTRA</button>
+            <!-- Toggle Tasks Checklist for Mobile -->
+            <button id="btn-toggle-tasks" class="icon-hud-btn" title="Lista de Tareas">📋</button>
+            <!-- Fullscreen button for mobile -->
+            <button id="btn-fullscreen" class="icon-hud-btn" title="Pantalla Completa">⛶</button>
+        </div>
+
+        <!-- Orientation Hint Banner for Mobile / Tablet in Portrait -->
+        <div id="orientation-hint" class="orientation-toast hidden">
+            <span>🔄 Gira tu pantalla a horizontal para mayor comodidad</span>
+        </div>
+
+        <!-- Role Announcement Banner -->
+        <div id="role-banner" class="role-overlay hidden">
+            <div class="role-card" id="role-card">
+                <h1 id="role-title">TRIPULANTE</h1>
+                <p id="role-desc">Completa tus tareas, sobrevive a los gatos zombis y descubre a los clones impostores.</p>
+            </div>
+        </div>
+
+        <!-- Task Checklist Overlay -->
+        <div id="task-checklist" class="hud-element hidden">
+            <div class="checklist-header">MISIÓN DE TAREAS</div>
+            <ul id="task-list"></ul>
+        </div>
+
+        <!-- Mobile Dynamic Floating Joystick Area (Left screen side) -->
+        <div id="joystick-touch-zone" class="hud-element">
+            <div id="joystick-base" class="hidden">
+                <div id="joystick-stick"></div>
+            </div>
+        </div>
+
+        <!-- Action Controls (Bottom Right - Ergonomic mobile arc layout) -->
+        <div id="action-controls" class="hud-element hidden">
+            <button id="btn-punch" class="action-btn btn-punch" title="Pelea cuerpo a cuerpo">
+                <span class="btn-icon">🍳</span>
+                <span class="btn-text">GOLPE</span>
+            </button>
+            <button id="btn-wardrobe-hud" class="action-btn btn-wardrobe" title="Cambiar Traje y Sombrero">
+                <span class="btn-icon">👗</span>
+                <span class="btn-text">VESTIDOR</span>
+            </button>
+            <button id="btn-use" class="action-btn btn-use" disabled>
+                <span class="btn-icon">⚡</span>
+                <span class="btn-text">USAR</span>
+            </button>
+            <button id="btn-report" class="action-btn btn-report" disabled>
+                <span class="btn-icon">📢</span>
+                <span class="btn-text">REPORTAR</span>
+            </button>
+            <button id="btn-kill" class="action-btn btn-kill hidden" disabled>
+                <span class="btn-icon">💀</span>
+                <span class="btn-text">ELIMINAR</span>
+                <span id="kill-cd-timer" class="cd-timer">16s</span>
+            </button>
+            <button id="btn-vent" class="action-btn btn-vent hidden" disabled>
+                <span class="btn-icon">🌀</span>
+                <span class="btn-text">ALCANTARILLA</span>
+            </button>
+            <button id="btn-shapeshift" class="action-btn btn-shapeshift hidden" title="Camuflarse como otro personaje">
+                <span class="btn-icon">🎭</span>
+                <span class="btn-text">CAMUFLAJE</span>
+            </button>
+            <button id="btn-ghost-invis" class="action-btn btn-ghost-invis hidden" title="Soltar botón de invisibilidad">
+                <span class="btn-icon">👻</span>
+                <span class="btn-text">INVISIBILIDAD</span>
+                <span id="ghost-cd-timer" class="cd-timer">12s</span>
+            </button>
+        </div>
+
+        <!-- Shapeshift Modal for Impostor -->
+        <div id="shapeshift-modal" class="modal-backdrop hidden">
+            <div class="modal-box shapeshift-window">
+                <div class="modal-header">
+                    <h3>🎭 CAMBIAR DE FORMA Y TRAJE</h3>
+                    <button class="modal-close-btn" id="btn-close-shapeshift">✕</button>
+                </div>
+                <p class="modal-subtitle" style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 12px;">Elige a quién imitar para engañar a los demás durante 18s:</p>
+                <div id="shapeshift-crew-grid" class="shapeshift-grid"></div>
+                <button id="btn-remove-disguise" class="secondary-btn" style="margin-top: 12px; width: 100%;">Quitar Camuflaje Actual</button>
+            </div>
+        </div>
+
+        <!-- Wardrobe / Customizer Modal (Sombreros, Trajes, Armas) -->
+        <div id="wardrobe-modal" class="modal-backdrop hidden">
+            <div class="modal-box wardrobe-window">
+                <div class="modal-header">
+                    <h3>👗 ARMARIO VESTIDOR DE MATIAS & BRUS</h3>
+                    <button class="modal-close-btn" id="btn-close-wardrobe">✕</button>
+                </div>
+                <div class="wardrobe-gender-picker">
+                    <span class="w-gender-label">GÉNERO:</span>
+                    <button type="button" class="w-gender-btn active" data-wgender="boy">👦 Niño / Hombre</button>
+                    <button type="button" class="w-gender-btn" data-wgender="girl">👧 Niña / Mujer</button>
+                </div>
+
+                <div class="wardrobe-tabs">
+                    <button class="w-tab-btn active" data-wtab="hats">SOMBREROS</button>
+                    <button class="w-tab-btn" data-wtab="skins">TRAJES (SKINS)</button>
+                    <button class="w-tab-btn" data-wtab="weapons">ARMAS DE PELEA</button>
+                </div>
+
+                <div id="wtab-hats" class="wardrobe-grid active"></div>
+                <div id="wtab-skins" class="wardrobe-grid"></div>
+                <div id="wtab-weapons" class="wardrobe-grid"></div>
+
+                <button id="btn-save-wardrobe" class="primary-btn" style="margin-top: 15px;">GUARDAR EQUIPAMIENTO</button>
+            </div>
+        </div>
+
+        <!-- Song Battle Modal (Batalla de Canciones) -->
+        <div id="song-battle-modal" class="modal-backdrop hidden">
+            <div class="modal-box song-battle-window">
+                <div class="battle-header">
+                    <h2>🎵 BATALLA DE CANCIONES Y RITMO</h2>
+                    <p>Presiona las flechas al ritmo de la música para ganar</p>
+                </div>
+                <div class="rhythm-stage">
+                    <div class="rhythm-track" id="rhythm-track">
+                        <div class="hit-zone">
+                            <div class="target-arrow left">⬅️</div>
+                            <div class="target-arrow down">⬇️</div>
+                            <div class="target-arrow up">⬆️</div>
+                            <div class="target-arrow right">➡️</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="rhythm-score-bar">
+                    <span>COMBO: <strong id="rhythm-combo">0</strong></span>
+                    <span>PUNTOS: <strong id="rhythm-score">0</strong></span>
+                </div>
+                <div class="rhythm-touch-controls">
+                    <button class="r-btn" data-dir="left">⬅️</button>
+                    <button class="r-btn" data-dir="down">⬇️</button>
+                    <button class="r-btn" data-dir="up">⬆️</button>
+                    <button class="r-btn" data-dir="right">➡️</button>
+                </div>
+                <button id="btn-close-song-battle" class="danger-btn" style="margin-top: 10px;">SALIR DE LA BATALLA</button>
+            </div>
+        </div>
+
+        <!-- Task Mini-Game Modal -->
+        <div id="task-modal" class="modal-backdrop hidden">
+            <div class="modal-box task-window">
+                <div class="modal-header">
+                    <h3 id="task-modal-title">Realizando Tarea</h3>
+                    <button class="modal-close-btn" id="btn-close-task">✕</button>
+                </div>
+                <div class="task-content">
+                    <div id="minigame-container"></div>
+                    <div class="task-progress-box">
+                        <div class="task-bar-track">
+                            <div id="minigame-progress" style="width: 0%;"></div>
+                            <div class="task-percent-label" id="minigame-percent">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Emergency Meeting / Voting Modal -->
+        <div id="meeting-modal" class="modal-backdrop hidden">
+            <div class="modal-box meeting-window">
+                <div class="meeting-header">
+                    <h2 id="meeting-reason-text">¡REUNIÓN DE EMERGENCIA!</h2>
+                    <span id="meeting-caller-text">Convocada por: Alguien</span>
+                    <div class="meeting-timer">Tiempo restante: <strong id="meeting-countdown">30</strong>s</div>
+                </div>
+                <div class="players-grid" id="voting-grid"></div>
+                <div class="meeting-footer">
+                    <button id="btn-skip-vote" class="vote-skip-btn">SALTAR VOTO</button>
+                    <div id="vote-status-msg" class="vote-status">Selecciona a un sospechoso</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div id="game-over-modal" class="modal-backdrop hidden">
+            <div class="modal-box game-over-window">
+                <h1 id="game-over-title">VICTORIA</h1>
+                <p id="game-over-subtitle">Los tripulantes ganaron la partida.</p>
+                <button id="btn-return-lobby" class="primary-btn">VOLVER A LA SALA</button>
+            </div>
+        </div>
+
+        <!-- In-Game Chat Box -->
+        <div id="chat-widget" class="hud-element">
+            <div id="chat-messages"></div>
+            <form id="chat-form">
+                <input type="text" id="chat-input" placeholder="Escribe un mensaje..." maxlength="80" autocomplete="off">
+                <button type="submit">➤</button>
+            </form>
+        </div>
+
+        <!-- Main Lobby / Login Screen -->
+        <div id="lobby-screen" class="lobby-overlay">
+            <div class="lobby-card">
+                <div class="game-logo">
+                    <span class="logo-badge">MÓVIL & WEB • EP 1 - 9</span>
+                    <h1>MATIAS & BRUS</h1>
+                    <h2 class="sub-logo">IMPOSTOR CHASE</h2>
+                    <p>Sobrevive a los gatos zombis, elimina a los clones con sartenes y espadas, y compite en batallas de canciones.</p>
+                </div>
+
+                <div class="lobby-form">
+                    <div class="input-group">
+                        <label for="player-nickname">NOMBRE DE ASTRONAUTA</label>
+                        <input type="text" id="player-nickname" placeholder="Tu Nombre..." maxlength="14" value="Matias">
+                    </div>
+
+                    <!-- Character Selection (11 Personajes Oficiales) -->
+                    <div class="input-group">
+                        <label>SELECCIONA TU PERSONAJE (1 DE 11)</label>
+                        <div class="character-select-grid" id="character-select-container">
+                            <button type="button" class="char-select-btn active" data-character="matias" style="--char-accent: #f1c40f;">
+                                <span class="char-role-badge">PROTAGONISTA</span>
+                                <span class="char-icon">👦</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">1. Matías</strong>
+                                    <small class="char-desc">Amarillo 3D, mini-Matías y tenis</small>
+                                </div>
+                            </button>
+                            <button type="button" class="char-select-btn" data-character="fantasma" style="--char-accent: #94a3b8;">
+                                <span class="char-role-badge">CIENTÍFICO</span>
+                                <span class="char-icon">🔬</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">2. Fantasma</strong>
+                                    <small class="char-desc">Gris, robot visor y microscopio</small>
+                                </div>
+                            </button>
+                            <button type="button" class="char-select-btn" data-character="gato_azul" style="--char-accent: #3b82f6;">
+                                <span class="char-role-badge">GATO</span>
+                                <span class="char-icon">🐱</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">3. Gato Azul</strong>
+                                    <small class="char-desc">Azul, orejas de gato negro</small>
+                                </div>
+                            </button>
+                            <button type="button" class="char-select-btn" data-character="reina_flor" style="--char-accent: #f472b6;">
+                                <span class="char-role-badge">REALEZA</span>
+                                <span class="char-icon">🌸</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">4. Reina Flor</strong>
+                                    <small class="char-desc">Rosado claro, corona y flor</small>
+                                </div>
+                            </button>
+                            <button type="button" class="char-select-btn" data-character="duende_verde" style="--char-accent: #22c55e;">
+                                <span class="char-role-badge">FORTUNA</span>
+                                <span class="char-icon">🍀</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">5. Duende Verde</strong>
+                                    <small class="char-desc">Verde, sombrero con moneda</small>
+                                </div>
+                            </button>
+                            <button type="button" class="char-select-btn" data-character="granjero_rojo" style="--char-accent: #ef4444;">
+                                <span class="char-role-badge">GRANJERO</span>
+                                <span class="char-icon">🌾</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">6. Granjero Rojo</strong>
+                                    <small class="char-desc">Rojo, sombrero de paja</small>
+                                </div>
+                            </button>
+                            <button type="button" class="char-select-btn" data-character="sanador_naranja" style="--char-accent: #f97316;">
+                                <span class="char-role-badge">SANADOR</span>
+                                <span class="char-icon">🌿</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">7. Sanador Naranja</strong>
+                                    <small class="char-desc">Naranja, planta sanadora</small>
+                                </div>
+                            </button>
+                            <button type="button" class="char-select-btn" data-character="nina_blanca" style="--char-accent: #f8fafc;">
+                                <span class="char-role-badge">TIERNA</span>
+                                <span class="char-icon">🦋</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">8. Niña Blanca</strong>
+                                    <small class="char-desc">Blanco, rostro tierno y mariposa</small>
+                                </div>
+                            </button>
+                            <button type="button" class="char-select-btn" data-character="mistico_uva" style="--char-accent: #9333ea;">
+                                <span class="char-role-badge">CÓSMICO</span>
+                                <span class="char-icon">🍇</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">9. Místico Uva</strong>
+                                    <small class="char-desc">Color uva, sombrero de antenas</small>
+                                </div>
+                            </button>
+                            <button type="button" class="char-select-btn" data-character="mago_negro" style="--char-accent: #a1a1aa;">
+                                <span class="char-role-badge">MAGO</span>
+                                <span class="char-icon">🎩</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">10. Mago Oscuro</strong>
+                                    <small class="char-desc">Negro, sombrero copa y conejo</small>
+                                </div>
+                            </button>
+                            <button type="button" class="char-select-btn" data-character="ciclope_astral" style="--char-accent: #38bdf8;">
+                                <span class="char-role-badge">ASTRAL</span>
+                                <span class="char-icon">👁️</span>
+                                <div class="char-text-box">
+                                    <strong class="char-title">11. Cíclope Astral</strong>
+                                    <small class="char-desc">Gris acero, ojo astral y orbe</small>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Gender Selection (Hombre vs Mujer) -->
+                    <div class="input-group" id="gender-selection-container">
+                        <label>GÉNERO DE PERSONAJE</label>
+                        <div class="gender-toggle-group">
+                            <button type="button" class="gender-btn active" data-gender="boy" id="btn-gender-boy">
+                                <span class="gender-icon">👦</span>
+                                <span class="gender-text">Hombre / Niño</span>
+                            </button>
+                            <button type="button" class="gender-btn" data-gender="girl" id="btn-gender-girl">
+                                <span class="gender-icon">👧</span>
+                                <span class="gender-text">Mujer / Niña</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="room-action-tabs">
+                        <button class="tab-btn active" data-tab="create">CREAR SALA</button>
+                        <button class="tab-btn" data-tab="join">SALAS ACTIVAS</button>
+                    </div>
+
+                    <div id="tab-create-content" class="tab-pane active">
+                        <button id="btn-create-room" class="primary-btn pulse-anim">
+                            <span>🚀 ¡ENTRAR A JUGAR AHORA!</span>
+                        </button>
+                    </div>
+
+                    <div id="tab-join-content" class="tab-pane">
+                        <div id="active-rooms-list" class="active-rooms-list">
+                            <div class="rooms-loading">Buscando salas activas...</div>
+                        </div>
+                        <button id="btn-refresh-rooms" class="secondary-btn" style="margin-top:8px;">
+                            <span>🔄 ACTUALIZAR LISTA</span>
+                        </button>
+                        <div class="input-group" style="margin-top:10px;">
+                            <label for="join-room-code">O INGRESA CÓDIGO MANUAL</label>
+                            <input type="text" id="join-room-code" placeholder="Ej: CHASE-A1B2" maxlength="12" style="text-transform: uppercase;">
+                        </div>
+                        <button id="btn-join-room" class="secondary-btn">
+                            <span>🚀 UNIRSE CON CÓDIGO</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- PWA Install Prompt Banner (Mobile) -->
+                <div id="pwa-install-box" class="pwa-banner hidden">
+                    <span>📲 Instala el juego como App en tu teléfono</span>
+                    <button id="btn-install-pwa">INSTALAR</button>
+                </div>
+
+                <!-- Graphics Quality Setting in Lobby -->
+                <div class="gfx-selector-box">
+                    <span>🎨 GRÁFICOS:</span>
+                    <div class="gfx-btn-group">
+                        <button class="gfx-opt-btn active" data-quality="low">⚡ Rápido</button>
+                        <button class="gfx-opt-btn" data-quality="medium">⭐ Normal</button>
+                        <button class="gfx-opt-btn" data-quality="ultra">✨ Ultra 3D</button>
+                    </div>
+                </div>
+
+                <div class="lobby-info-cards">
+                    <div class="info-card">
+                        <strong>📱 Móvil / Pantalla Táctil</strong>
+                        <p>Toca y desliza en la izquierda para moverte. Usa los botones derechos para golpear y usar tareas.</p>
+                    </div>
+                    <div class="info-card">
+                        <strong>🍳 Teclado (PC)</strong>
+                        <p>WASD: Moverte.<br>F / J: Pelear / Golpear.<br>Espacio / E: Tareas.<br>Q: Eliminar (Impostor).</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Waiting Room Pre-Game Screen -->
+        <div id="waiting-room-screen" class="lobby-overlay hidden">
+            <div class="waiting-card">
+                <div class="waiting-header">
+                    <h2>SALA DE ESPERA: MATIAS & BRUS</h2>
+                    <div class="code-copy-box">
+                        <span>CÓDIGO: <strong id="display-room-code">----</strong></span>
+                        <button id="btn-copy-code" title="Copiar enlace">📋 Copiar Link</button>
+                    </div>
+                </div>
+                <p class="waiting-subtitle">Comparte el link para que tus amigos jueguen desde sus celulares.</p>
+
+                <div class="players-list-box">
+                    <h3>JUGADORES CONECTADOS (<span id="waiting-players-count">1</span>/10)</h3>
+                    <div id="waiting-players-grid" class="waiting-grid"></div>
+                </div>
+
+                <div class="waiting-actions">
+                    <button id="btn-start-game" class="primary-btn pulse-anim">
+                        <span>▶ COMENZAR PARTIDA</span>
+                    </button>
+                    <button id="btn-leave-room" class="danger-btn">SALIR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/qrcode.min.js"></script>
+    <script src="js/audio.js?v=3"></script>
+    <script src="js/network.js?v=3"></script>
+    <script src="js/game.js?v=3"></script>
+    <script src="js/ui.js?v=3"></script>
+</body>
+</html>

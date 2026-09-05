@@ -1,0 +1,245 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradients -->
+    <radialGradient id="bgGrad" cx="50%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="60%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </radialGradient>
+    <radialGradient id="glowRing" cx="50%" cy="50%" r="50%">
+      <stop offset="70%" stop-color="#f1c40f" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- 3D Skin Gradients -->
+    <radialGradient id="skinGrad" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#ffdfba"/>
+      <stop offset="55%" stop-color="#fbc794"/>
+      <stop offset="100%" stop-color="#e09f67"/>
+    </radialGradient>
+    <radialGradient id="miniSkinGrad" cx="40%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#ffdfba"/>
+      <stop offset="65%" stop-color="#fbc794"/>
+      <stop offset="100%" stop-color="#d48b52"/>
+    </radialGradient>
+
+    <!-- 3D Yellow Hoodie Gradients (Buso Amarillo con Relieve 3D) -->
+    <radialGradient id="hoodie3D" cx="35%" cy="25%" r="75%">
+      <stop offset="0%" stop-color="#fff59d"/>
+      <stop offset="35%" stop-color="#fdd835"/>
+      <stop offset="75%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </radialGradient>
+    <linearGradient id="zipperGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#94a3b8"/>
+      <stop offset="50%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+
+    <!-- 3D Yellow Suit Pants Gradients (Todo el Traje Amarillo 3D) -->
+    <linearGradient id="yellowLegGrad" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#fff59d"/>
+      <stop offset="40%" stop-color="#fdd835"/>
+      <stop offset="85%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="yellowLegShade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fdd835"/>
+      <stop offset="70%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+
+    <!-- 3D White Sneakers Gradients (Zapatos Blancos) -->
+    <radialGradient id="sneakerWhite" cx="35%" cy="25%" r="75%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="65%" stop-color="#e2e8f0"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </radialGradient>
+    <linearGradient id="sneakerSole" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#cbd5e1"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+
+    <!-- 3D Hair Gradients -->
+    <radialGradient id="hairGrad" cx="35%" cy="25%" r="70%">
+      <stop offset="0%" stop-color="#5a3825"/>
+      <stop offset="60%" stop-color="#362217"/>
+      <stop offset="100%" stop-color="#1c100a"/>
+    </radialGradient>
+
+    <!-- Drop Shadows -->
+    <filter id="shadow3D" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+    <filter id="glowGold" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background 3D Badge -->
+  <rect width="512" height="512" rx="130" fill="url(#bgGrad)"/>
+  <circle cx="256" cy="256" r="236" fill="url(#glowRing)"/>
+  <circle cx="256" cy="256" r="236" fill="none" stroke="#f1c40f" stroke-width="6" opacity="0.8"/>
+  <circle cx="256" cy="256" r="226" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="14,8" opacity="0.6"/>
+
+  <!-- Character Ground Shadow -->
+  <ellipse cx="256" cy="460" rx="140" ry="24" fill="#000000" opacity="0.65"/>
+
+  <!-- Group Character with 3D Depth -->
+  <g filter="url(#shadow3D)">
+    <!-- ================= 1. LEGS: ALL-YELLOW SUIT (PANTALÓN AMARILLO 3D) ================= -->
+    <!-- Left Leg (Pierna Amarilla Izquierda) -->
+    <path d="M 185 340 L 175 425 Q 175 435 195 435 L 225 435 Q 235 435 235 425 L 230 340 Z" fill="url(#yellowLegGrad)"/>
+    <!-- Right Leg (Pierna Amarilla Derecha) -->
+    <path d="M 282 340 L 277 425 Q 277 435 297 435 L 327 435 Q 337 435 337 425 L 327 340 Z" fill="url(#yellowLegShade)"/>
+    <!-- Yellow Suit Crease and Seam Accents (Pliegues del traje amarillo) -->
+    <path d="M 256 340 L 256 375" stroke="#b45309" stroke-width="2.5" stroke-dasharray="4,2"/>
+    <path d="M 188 355 Q 210 365 228 355" stroke="#b45309" stroke-width="2" fill="none"/>
+    <path d="M 284 355 Q 302 365 324 355" stroke="#b45309" stroke-width="2" fill="none"/>
+
+    <!-- ================= 2. SNEAKERS (ZAPATOS BLANCOS 3D) ================= -->
+    <!-- Left White Sneaker -->
+    <g>
+      <!-- Sneaker Sole -->
+      <path d="M 160 440 Q 160 455 195 455 L 235 455 Q 242 455 242 445 L 242 440 Z" fill="url(#sneakerSole)"/>
+      <!-- Sneaker Body -->
+      <path d="M 168 438 C 168 418 190 415 210 415 C 232 415 242 422 242 438 Z" fill="url(#sneakerWhite)"/>
+      <!-- Sneaker Toe Cap -->
+      <ellipse cx="180" cy="438" rx="14" ry="9" fill="#ffffff"/>
+      <!-- Laces (Cordones) -->
+      <line x1="195" y1="424" x2="215" y2="424" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+      <line x1="198" y1="430" x2="218" y2="430" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+    </g>
+
+    <!-- Right White Sneaker -->
+    <g>
+      <!-- Sneaker Sole -->
+      <path d="M 270 440 Q 270 455 305 455 L 345 455 Q 352 455 352 445 L 352 440 Z" fill="url(#sneakerSole)"/>
+      <!-- Sneaker Body -->
+      <path d="M 278 438 C 278 418 300 415 320 415 C 342 415 352 422 352 438 Z" fill="url(#sneakerWhite)"/>
+      <!-- Sneaker Toe Cap -->
+      <ellipse cx="332" cy="438" rx="14" ry="9" fill="#ffffff"/>
+      <!-- Laces -->
+      <line x1="295" y1="424" x2="315" y2="424" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+      <line x1="298" y1="430" x2="318" y2="430" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+    </g>
+
+    <!-- ================= 3. TORSO: YELLOW HOODIE WITH ZIPPER (BUSO AMARILLO CON CIERRE) ================= -->
+    <!-- Torso 3D Mass -->
+    <path d="M 165 240 C 150 280 160 345 185 355 C 220 365 292 365 327 355 C 352 345 362 280 347 240 C 330 205 182 205 165 240 Z" fill="url(#hoodie3D)"/>
+
+    <!-- 3D Zipper (Cierre Metálico Frontal) -->
+    <!-- Zipper Track Background -->
+    <rect x="252" y="215" width="8" height="142" rx="3" fill="#334155"/>
+    <!-- Metallic Zipper Teeth -->
+    <line x1="256" y1="215" x2="256" y2="357" stroke="url(#zipperGrad)" stroke-width="4" stroke-dasharray="5,3"/>
+    <!-- Metal Zipper Puller (Tirador de la cremallera) -->
+    <polygon points="252,260 260,260 263,278 249,278" fill="url(#zipperGrad)" stroke="#1e293b" stroke-width="1.5"/>
+    <circle cx="256" cy="272" r="2.5" fill="#1e293b"/>
+
+    <!-- Hoodie Kangaroo Pockets -->
+    <path d="M 195 315 Q 256 330 317 315 L 305 348 Q 256 358 207 348 Z" fill="#d97706" opacity="0.35"/>
+    <path d="M 215 318 L 207 348" stroke="#f59e0b" stroke-width="2.5"/>
+    <path d="M 297 318 L 305 348" stroke="#f59e0b" stroke-width="2.5"/>
+
+    <!-- Hoodie Collar / Hood Fold -->
+    <ellipse cx="256" cy="214" rx="60" ry="18" fill="#d97706"/>
+    <ellipse cx="256" cy="210" rx="55" ry="15" fill="url(#hoodie3D)"/>
+
+    <!-- Arms in Yellow Sleeves -->
+    <!-- Left Arm holding side -->
+    <path d="M 170 235 C 130 270 125 310 145 335 C 155 345 165 330 175 305 C 185 280 185 245 170 235 Z" fill="url(#hoodie3D)"/>
+    <!-- Right Arm raised celebrating / holding pan -->
+    <path d="M 342 235 C 375 250 405 230 420 185 C 428 165 410 160 395 178 C 375 200 355 215 342 235 Z" fill="url(#hoodie3D)"/>
+
+    <!-- Left Hand (Boy Hand) -->
+    <ellipse cx="145" cy="340" rx="14" ry="12" fill="url(#skinGrad)"/>
+
+    <!-- Right Hand (Holding Frying Pan) -->
+    <ellipse cx="415" cy="175" rx="15" ry="13" fill="url(#skinGrad)"/>
+
+    <!-- ================= 4. 3D FRYING PAN WITH SUNNY EGG (SARTÉN CON HUEVO FRITO) ================= -->
+    <g transform="translate(425, 140) rotate(-20)">
+      <!-- Pan Handle -->
+      <rect x="-10" y="25" width="14" height="40" rx="6" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+      <!-- Pan Body -->
+      <circle cx="-3" cy="5" r="42" fill="#1e293b" stroke="#475569" stroke-width="5"/>
+      <circle cx="-3" cy="5" r="36" fill="#0f172a"/>
+      <!-- Fried Egg White (Clara de Huevo con volumen 3D) -->
+      <path d="M -22 -6 C -28 10 -10 25 8 22 C 22 20 28 8 20 -8 C 12 -22 -14 -20 -22 -6 Z" fill="#ffffff"/>
+      <ellipse cx="-1" cy="5" rx="22" ry="19" fill="#f8fafc"/>
+      <!-- Yolk (Yema Dorada Reluciente) -->
+      <circle cx="2" cy="6" r="13" fill="#f59e0b"/>
+      <circle cx="3" cy="5" r="11" fill="#fbbf24"/>
+      <circle cx="0" cy="2" r="4" fill="#ffffff" opacity="0.8"/>
+    </g>
+
+    <!-- ================= 5. BOY HEAD & EXPRESSIVE 3D FACE (CARA DE NIÑO MATIAS) ================= -->
+    <!-- Ears -->
+    <ellipse cx="182" cy="148" rx="13" ry="16" fill="url(#skinGrad)"/>
+    <ellipse cx="182" cy="148" rx="7" ry="9" fill="#e09f67"/>
+    <ellipse cx="330" cy="148" rx="13" ry="16" fill="url(#skinGrad)"/>
+    <ellipse cx="330" cy="148" rx="7" ry="9" fill="#e09f67"/>
+
+    <!-- Head Round 3D Geometry -->
+    <circle cx="256" cy="145" r="76" fill="url(#skinGrad)"/>
+
+    <!-- Rosy Boy Cheeks -->
+    <ellipse cx="205" cy="165" rx="15" ry="9" fill="#f87171" opacity="0.35"/>
+    <ellipse cx="307" cy="165" rx="15" ry="9" fill="#f87171" opacity="0.35"/>
+
+    <!-- Big Expressive Cartoon Eyes (Ojos Grandes Caricaturescos) -->
+    <!-- Left Eye -->
+    <ellipse cx="218" cy="142" rx="19" ry="24" fill="#ffffff"/>
+    <ellipse cx="221" cy="142" rx="13" ry="17" fill="#1e293b"/>
+    <circle cx="224" cy="136" r="6" fill="#ffffff"/> <!-- Eye Highlight 1 -->
+    <circle cx="217" cy="148" r="2.5" fill="#ffffff"/> <!-- Eye Highlight 2 -->
+
+    <!-- Right Eye -->
+    <ellipse cx="294" cy="142" rx="19" ry="24" fill="#ffffff"/>
+    <ellipse cx="291" cy="142" rx="13" ry="17" fill="#1e293b"/>
+    <circle cx="294" cy="136" r="6" fill="#ffffff"/>
+    <circle cx="287" cy="148" r="2.5" fill="#ffffff"/>
+
+    <!-- Eyebrows (Cejas amigables de niño) -->
+    <path d="M 200 115 Q 220 108 238 120" stroke="#362217" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+    <path d="M 312 115 Q 292 108 274 120" stroke="#362217" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+
+    <!-- Cute Button Nose -->
+    <ellipse cx="256" cy="155" rx="5" ry="3.5" fill="#d48b52"/>
+
+    <!-- Happy Mouth with Tongue & Teeth -->
+    <path d="M 230 172 Q 256 202 282 172 Z" fill="#7f1d1d"/>
+    <path d="M 237 172 Q 256 182 275 172 Z" fill="#ffffff"/> <!-- Teeth -->
+    <path d="M 245 186 Q 256 180 267 186 Q 256 198 245 186 Z" fill="#f43f5e"/> <!-- Tongue -->
+
+    <!-- Boyish Haircut (Pelo de Niño 3D Castaño) -->
+    <path d="M 180 135 C 175 75 220 65 256 68 C 295 65 340 75 332 135 C 320 95 305 85 285 85 C 265 85 260 98 245 88 C 230 78 205 90 180 135 Z" fill="url(#hairGrad)"/>
+    <!-- Hair Spikes & Tuft -->
+    <path d="M 235 72 Q 250 48 268 64 Q 285 45 295 72 Z" fill="url(#hairGrad)"/>
+
+    <!-- ================= 6. MINI-MATIAS RIDING ON HEAD (MINI-PERSONAJE EN LA CABEZA) ================= -->
+    <g transform="translate(256, 46)">
+      <!-- Mini Body in Pink/Yellow Suit -->
+      <ellipse cx="0" cy="14" rx="22" ry="16" fill="#f43f5e"/>
+      <!-- Mini Head -->
+      <circle cx="0" cy="-6" r="22" fill="url(#miniSkinGrad)"/>
+      <!-- Mini Hair -->
+      <path d="M -22 -6 C -20 -28 0 -30 15 -25 C 24 -18 22 -6 22 -6 C 14 -18 -8 -18 -22 -6 Z" fill="#2c1810"/>
+      <!-- Mini Eyes -->
+      <circle cx="-7" cy="-7" r="3.5" fill="#1e293b"/>
+      <circle cx="7" cy="-7" r="3.5" fill="#1e293b"/>
+      <circle cx="-6" cy="-9" r="1.2" fill="#ffffff"/>
+      <circle cx="8" cy="-9" r="1.2" fill="#ffffff"/>
+      <!-- Mini Smile -->
+      <path d="M -4 2 Q 0 8 4 2" stroke="#b91c1c" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <!-- Mini Hands holding Matias hair -->
+      <circle cx="-16" cy="10" r="5" fill="#ffdfba"/>
+      <circle cx="16" cy="10" r="5" fill="#ffdfba"/>
+    </g>
+
+    <!-- Star Power Badge / Pin -->
+    <polygon points="190,265 194,275 205,275 196,282 200,292 190,285 180,292 184,282 175,275 186,275" fill="#ffd600" stroke="#f59e0b" stroke-width="1.5" filter="url(#glowGold)"/>
+  </g>
+</svg>

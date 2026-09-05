@@ -1,0 +1,8 @@
+Idea_inicial/
+*.bak
+*.sh
+*.bat
+*.log
+__pycache__/
+*.pyc
+.dockerignore*
