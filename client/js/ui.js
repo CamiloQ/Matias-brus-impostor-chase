@@ -908,6 +908,7 @@ class UIManager {
     }
 
     openWardrobeModal() {
+        this.resetJoystick();
         this.wardrobeModal.classList.remove("hidden");
     }
 
@@ -922,6 +923,7 @@ class UIManager {
     }
 
     openSongBattleModal() {
+        this.resetJoystick();
         this.songBattleActive = true;
         this.rhythmScore = 0;
         this.rhythmCombo = 0;
@@ -1116,6 +1118,7 @@ class UIManager {
     }
 
     openShapeshiftModal() {
+        this.resetJoystick();
         if (!this.shapeshiftModal || !this.shapeshiftCrewGrid) return;
         this.shapeshiftCrewGrid.innerHTML = "";
 
@@ -1166,6 +1169,7 @@ class UIManager {
     }
 
     openTaskModal(task) {
+        this.resetJoystick();
         this.currentTaskStation = task;
         document.getElementById("task-modal-title").textContent = `⚙️ ${task.room}: ${task.name}`;
         this.taskModal.classList.remove("hidden");
@@ -1294,6 +1298,7 @@ class UIManager {
     }
 
     openMeetingModal(meeting) {
+        this.resetJoystick();
         this.meetingModal.classList.remove("hidden");
         document.getElementById("meeting-reason-text").textContent = `¡${meeting.reason.toUpperCase()}!`;
         document.getElementById("meeting-caller-text").textContent = `Convocada por: ${meeting.caller}`;
@@ -1363,6 +1368,19 @@ class UIManager {
         }
     }
 
+    resetJoystick() {
+        this.joystickVector = { x: 0, y: 0 };
+        if (this.joystickBase) {
+            this.joystickBase.classList.add("hidden");
+        }
+        if (this.joystickStick) {
+            this.joystickStick.style.transform = "translate(0px, 0px)";
+        }
+        if (window.gameEngine) {
+            window.gameEngine.updateInputVector();
+        }
+    }
+
     setupDynamicFloatingJoystick() {
         // Floating Joystick: Spawns directly under the thumb anywhere on the left side of the screen
         let activeTouchId = null;
@@ -1371,16 +1389,28 @@ class UIManager {
 
         const onTouchStart = (e) => {
             if (activeTouchId !== null) return;
+            // Only allow joystick movement during active gameplay
+            if (window.gameEngine && window.gameEngine.gameState !== "PLAYING") return;
+            if (e.cancelable) e.preventDefault();
+
             const touch = e.changedTouches[0];
             activeTouchId = touch.identifier;
-            origin = { x: touch.clientX, y: touch.clientY };
+
+            const rect = this.touchZone.getBoundingClientRect();
+            origin = {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
 
             // Position base under thumb and reveal
             this.joystickBase.style.left = `${origin.x}px`;
             this.joystickBase.style.top = `${origin.y}px`;
             this.joystickBase.classList.remove("hidden");
-            this.joystickStick.style.transform = `translate(0px, 0px)`;
+            this.joystickStick.style.transform = "translate(0px, 0px)";
             this.joystickVector = { x: 0, y: 0 };
+            if (window.gameEngine) {
+                window.gameEngine.updateInputVector();
+            }
         };
 
         const onTouchMove = (e) => {
@@ -1388,8 +1418,12 @@ class UIManager {
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const touch = e.changedTouches[i];
                 if (touch.identifier === activeTouchId) {
-                    const dx = touch.clientX - origin.x;
-                    const dy = touch.clientY - origin.y;
+                    if (e.cancelable) e.preventDefault();
+                    const rect = this.touchZone.getBoundingClientRect();
+                    const touchX = touch.clientX - rect.left;
+                    const touchY = touch.clientY - rect.top;
+                    const dx = touchX - origin.x;
+                    const dy = touchY - origin.y;
                     const dist = Math.hypot(dx, dy);
                     const clampedDist = Math.min(dist, maxDist);
                     const angle = Math.atan2(dy, dx);
@@ -1402,7 +1436,9 @@ class UIManager {
                         x: sx / maxDist,
                         y: sy / maxDist
                     };
-                    window.gameEngine.updateInputVector();
+                    if (window.gameEngine) {
+                        window.gameEngine.updateInputVector();
+                    }
                     break;
                 }
             }
@@ -1413,11 +1449,14 @@ class UIManager {
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const touch = e.changedTouches[i];
                 if (touch.identifier === activeTouchId) {
+                    if (e.cancelable) e.preventDefault();
                     activeTouchId = null;
                     this.joystickBase.classList.add("hidden");
-                    this.joystickStick.style.transform = `translate(0px, 0px)`;
+                    this.joystickStick.style.transform = "translate(0px, 0px)";
                     this.joystickVector = { x: 0, y: 0 };
-                    window.gameEngine.updateInputVector();
+                    if (window.gameEngine) {
+                        window.gameEngine.updateInputVector();
+                    }
                     break;
                 }
             }
