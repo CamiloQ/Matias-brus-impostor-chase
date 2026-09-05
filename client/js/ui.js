@@ -1529,6 +1529,7 @@ class UIManager {
         this.touchZone.addEventListener("touchstart", (e) => {
             if (e.cancelable) e.preventDefault();
         }, { passive: false });
+    }
 }
 
 window.uiManager = new UIManager();
