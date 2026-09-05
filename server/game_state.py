@@ -923,7 +923,7 @@ class GameRoom:
                         vy = math.sin(angle) * speed
                         self.light_orbs.append(LightOrb(orb_id, cat.x, cat.y, vx, vy))
                     hit_info = {"type": "cat_hit", "cat_id": cat.id, "cat_dead": not cat.alive, "x": cat.x, "y": cat.y, "weapon": attacker.weapon}
-                    return True, "¡Golpeaste al Gato Zombi!", hit_info
+                    return True, "¡Vence al zombi!", hit_info
 
         # 2. Check hitting Evil Clone Impostors
         for clone in self.clone_impostors:

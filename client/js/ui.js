@@ -867,7 +867,7 @@ class UIManager {
             let text = "💥 ¡GOLPE!";
             let color = "#ffd600";
             if (hit.type === "cat_hit") {
-                text = hit.cat_dead ? "🐱 ¡GATO DERROTADO! (SUELTA LUZ)" : "🐱 ¡GOLPE AL GATO!";
+                text = hit.cat_dead ? "¡ZOMBI DERROTADO! (SUELTA LUZ)" : "¡VENCE AL ZOMBI!";
                 color = "#00e676";
                 window.soundEngine.playCatSound();
             } else if (hit.type === "clone_hit") {
