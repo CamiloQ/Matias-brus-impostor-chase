@@ -111,6 +111,10 @@ class UIManager {
         this.autoStartPending = false;
         const urlParams = new URLSearchParams(window.location.search);
         const roomParam = urlParams.get("room");
+        const playParam = urlParams.get("play");
+        if (playParam === "1") {
+            this.autoStartPending = true;
+        }
         // Si la URL contiene room, pre-rellenar código de sala
         if (roomParam) {
             this.inputRoomCode.value = roomParam;
@@ -768,6 +772,10 @@ class UIManager {
             this.topBar.classList.add("hidden");
             this.taskChecklist.classList.add("hidden");
             this.actionControls.classList.add("hidden");
+            if (this.btnKill) this.btnKill.classList.add("hidden");
+            if (this.btnVent) this.btnVent.classList.add("hidden");
+            if (this.btnShapeshift) this.btnShapeshift.classList.add("hidden");
+            if (this.btnGhostInvis) this.btnGhostInvis.classList.add("hidden");
             this.waitingScreen.classList.remove("hidden");
             window.gameEngine.gameState = "LOBBY";
         });
@@ -1039,12 +1047,17 @@ class UIManager {
     hitRhythmNote(dir) {
         if (!this.songBattleActive) return;
         this.vibrate(20);
-        window.soundEngine.playRhythmNote(dir);
+        if (window.soundEngine) {
+            window.soundEngine.playPentatonicChime(this.rhythmCombo);
+        }
         this.rhythmCombo++;
         this.rhythmScore += 50 * this.rhythmCombo;
         document.getElementById("rhythm-combo").textContent = this.rhythmCombo;
         document.getElementById("rhythm-score").textContent = this.rhythmScore;
         this.highlightTargetArrow(dir);
+        if (window.gameEngine && window.gameEngine.brusCompanion) {
+            window.gameEngine.brusCompanion.celebrateTimer = 0.4;
+        }
     }
 
     closeSongBattleModal(completed = false) {
@@ -1333,7 +1346,6 @@ class UIManager {
         holdBtn.addEventListener("pointerdown", startHold);
         holdBtn.addEventListener("pointerup", stopHold);
         holdBtn.addEventListener("pointercancel", stopHold);
-        holdBtn.addEventListener("pointerleave", stopHold);
 
         // Keyboard hold support (Space or E)
         const onKeyDown = (e) => {
@@ -1362,6 +1374,13 @@ class UIManager {
             this.taskKeyHandler = null;
         }
         this.taskModal.classList.add("hidden");
+        if (completed) {
+            if (window.soundEngine) window.soundEngine.playPentatonicArpeggio();
+            if (window.gameEngine && window.gameEngine.brusCompanion) {
+                window.gameEngine.brusCompanion.celebrateTimer = 1.2;
+                window.gameEngine.brusCompanion.state = "celebrating";
+            }
+        }
         if (this.currentTaskStation) {
             if (!completed) {
                 window.network.sendCancelTask();
@@ -1469,7 +1488,7 @@ class UIManager {
         const onPointerDown = (e) => {
             if (activePointerId !== null) return;
             if (!isInGame()) return;
-            if (e.pointerType === "mouse" && e.button !== 0) return;
+            if (e.pointerType === "mouse") return; // Joystick is only for touch screens
 
             activePointerId = e.pointerId;
             try { this.touchZone.setPointerCapture(e.pointerId); } catch (_) {}

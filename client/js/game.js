@@ -44,6 +44,20 @@ class GameEngine {
         this.screenShake = 0;
         this.gameState = "LOBBY";
 
+        // Koira-inspired companion: Brus the faithful puppy
+        this.brusCompanion = {
+            x: 1350,
+            y: 720,
+            targetX: 1350,
+            targetY: 720,
+            facingRight: true,
+            state: "sitting",
+            sitTimer: 0,
+            celebrateTimer: 0,
+            walkAnim: 0,
+            hasAlerted: false
+        };
+
         this.camera = { x: 1350, y: 700, zoom: 1.0 };
         this.inputVector = { x: 0, y: 0 };
         this.keys = {};
@@ -81,16 +95,17 @@ class GameEngine {
 
     initAmbientParticles() {
         this.ambientParticles = [];
-        const count = this.graphicsQuality === "ultra" ? 55 : (this.graphicsQuality === "medium" ? 25 : 0);
+        const count = this.graphicsQuality === "ultra" ? 65 : (this.graphicsQuality === "medium" ? 40 : 22);
         for (let i = 0; i < count; i++) {
             this.ambientParticles.push({
                 x: Math.random() * 2800,
                 y: Math.random() * 1900,
-                vx: (Math.random() - 0.5) * 14,
-                vy: (Math.random() - 0.5) * 14,
-                size: 1 + Math.random() * 2.2,
-                alpha: 0.15 + Math.random() * 0.45,
-                pulse: Math.random() * Math.PI * 2
+                vx: (Math.random() - 0.5) * 10,
+                vy: -8 - Math.random() * 14, // Gentle upward drift
+                size: 1.2 + Math.random() * 2.5,
+                alpha: 0.25 + Math.random() * 0.45,
+                pulse: Math.random() * Math.PI * 2,
+                swaySeed: Math.random() * 100
             });
         }
     }
@@ -222,6 +237,10 @@ class GameEngine {
             } else {
                 window.soundEngine.playPanHit();
             }
+            if (this.brusCompanion) {
+                this.brusCompanion.celebrateTimer = 1.0;
+                this.brusCompanion.state = "celebrating";
+            }
             window.network.send({ type: "punch" });
         }
     }
@@ -268,7 +287,7 @@ class GameEngine {
             activeIds.add(pData.id);
             let p = this.players.get(pData.id);
             if (!p) {
-                p = { ...pData, renderX: pData.x, renderY: pData.y, walkAnim: 0 };
+                p = { ...pData, targetX: pData.x, targetY: pData.y, renderX: pData.x, renderY: pData.y, walkAnim: 0, in_stealth: Boolean(pData.in_stealth) };
                 this.players.set(pData.id, p);
             } else {
                 p.name = pData.name;
@@ -295,6 +314,7 @@ class GameEngine {
                 p.disguise_timer = pData.disguise_timer;
                 p.ghost_button_cd = pData.ghost_button_cd;
                 p.completed_tasks_count = pData.completed_tasks_count;
+                p.in_stealth = Boolean(pData.in_stealth);
             }
 
             if (pData.id === this.myPlayerId) {
@@ -453,6 +473,28 @@ class GameEngine {
         if (me) {
             this.camera.x += (me.renderX - this.camera.x) * 0.12;
             this.camera.y += (me.renderY - this.camera.y) * 0.12;
+
+            // Update current room name pill on HUD
+            const rx = me.renderX;
+            const ry = me.renderY;
+            let currentRoom = "PASILLO CONECTOR";
+            if (rx < 600 && ry < 600) {
+                currentRoom = "REACTOR DE ENERGÍA";
+            } else if (rx < 700 && ry >= 950) {
+                currentRoom = "ELECTRICIDAD & FUSIBLES";
+            } else if (rx >= 800 && rx <= 1900 && ry >= 300 && ry <= 1100) {
+                currentRoom = "CAFETERÍA MATIAS & BRUS";
+            } else if (rx >= 950 && rx <= 1800 && ry >= 1300) {
+                currentRoom = "SALA DE MÚSICA & BAILE";
+            } else if (rx >= 2000 && ry <= 650) {
+                currentRoom = "DORMITORIOS & VESTIDOR";
+            } else if (rx >= 2000 && ry >= 750) {
+                currentRoom = "NAVEGACIÓN & RADAR";
+            }
+            const roomEl = document.getElementById("current-room-name");
+            if (roomEl && roomEl.textContent !== currentRoom) {
+                roomEl.textContent = currentRoom;
+            }
         }
 
         this.players.forEach(p => {
@@ -466,6 +508,85 @@ class GameEngine {
                 p.walkAnim = 0;
             }
         });
+
+        // Update Brus Companion (Koira-inspired reactive companion dynamics)
+        if (this.brusCompanion && this.gameState === "PLAYING") {
+            const brus = this.brusCompanion;
+            let owner = null;
+            this.players.forEach(p => {
+                if (p.character === "matias" && p.alive) owner = p;
+            });
+            if (!owner) owner = me;
+
+            if (owner && owner.alive && !owner.in_vent) {
+                const ownerVx = owner.vx || 0;
+                const ownerVy = owner.vy || 0;
+                const ownerFacingRight = (ownerVx > 5) ? true : ((ownerVx < -5) ? false : brus.facingRight);
+
+                brus.targetX = owner.renderX - (ownerFacingRight ? 32 : -32);
+                brus.targetY = owner.renderY + 12;
+
+                const dx = brus.targetX - brus.x;
+                const dy = brus.targetY - brus.y;
+                const dist = Math.hypot(dx, dy);
+
+                if (brus.celebrateTimer > 0) {
+                    brus.celebrateTimer -= dt;
+                    brus.state = "celebrating";
+                } else if (dist > 18) {
+                    brus.state = "trotting";
+                    brus.sitTimer = 0;
+                    const spd = Math.min(280, Math.max(120, dist * 5.2));
+                    brus.x += (dx / dist) * spd * dt;
+                    brus.y += (dy / dist) * spd * dt;
+                    brus.facingRight = (dx >= 0);
+                    brus.walkAnim += dt * 14;
+                } else {
+                    brus.sitTimer += dt;
+                    if (brus.sitTimer > 0.3) {
+                        brus.state = "sitting";
+                        brus.facingRight = ownerFacingRight;
+                    }
+                }
+
+                // Threat detection: Zombie Cat or Clone within 220px
+                let threatFound = false;
+                let threatAngle = 0;
+                for (let cat of this.zombieCats) {
+                    if (cat.alive) {
+                        const cDist = Math.hypot(cat.x - brus.x, cat.y - brus.y);
+                        if (cDist < 220) {
+                            threatFound = true;
+                            threatAngle = Math.atan2(cat.y - brus.y, cat.x - brus.x);
+                            break;
+                        }
+                    }
+                }
+                if (!threatFound) {
+                    for (let cl of this.cloneImpostors) {
+                        if (cl.alive) {
+                            const clDist = Math.hypot(cl.x - brus.x, cl.y - brus.y);
+                            if (clDist < 230) {
+                                threatFound = true;
+                                threatAngle = Math.atan2(cl.y - brus.y, cl.x - brus.x);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (threatFound) {
+                    brus.state = "alert";
+                    brus.facingRight = Math.cos(threatAngle) >= 0;
+                    if (!brus.hasAlerted) {
+                        brus.hasAlerted = true;
+                        if (window.soundEngine) window.soundEngine.playDogBark(true);
+                    }
+                } else {
+                    brus.hasAlerted = false;
+                }
+            }
+        }
 
         // Screen shake decay
         if (this.screenShake > 0) {
@@ -553,6 +674,12 @@ class GameEngine {
 
         // 13. Players (With 3D spherical lighting, all-yellow suit, white sneakers, inside sewer crawl, disguise, invisibility)
         this.drawPlayers(ctx);
+
+        // 13.1 Koira-inspired Companion: Brus the faithful puppy
+        this.drawBrusCompanion(ctx);
+
+        // 13.2 Koira-inspired Stealth shadow zone aura
+        this.drawStealthVignette(ctx, w, h);
 
         // 14. Floating Punch Particles & Sparks
         this.drawPunchEffects(ctx);
@@ -2382,13 +2509,14 @@ class GameEngine {
     }
 
     drawAmbientDust(ctx) {
-        if (this.graphicsQuality === "low") return;
         ctx.save();
+        const time = Date.now() / 1000;
         this.ambientParticles.forEach(p => {
+            const sway = Math.sin((p.swaySeed || 0) + time * 1.5) * 5;
             const alpha = (0.2 + Math.sin(p.pulse) * 0.15) * p.alpha;
             ctx.fillStyle = `rgba(254, 240, 138, ${alpha})`; // Warm golden dust motes
             ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.arc(p.x + sway, p.y, p.size, 0, Math.PI * 2);
             ctx.fill();
         });
         ctx.restore();
@@ -3734,6 +3862,256 @@ class GameEngine {
 
             ctx.restore();
         });
+    }
+
+    drawBrusCompanion(ctx) {
+        const brus = this.brusCompanion;
+        if (!brus || this.gameState !== "PLAYING") return;
+
+        ctx.save();
+        ctx.translate(brus.x, brus.y);
+
+        const isSitting = (brus.state === "sitting");
+        const isAlert = (brus.state === "alert");
+        const isCelebrating = (brus.state === "celebrating");
+        const isTrotting = (brus.state === "trotting");
+
+        const flip = brus.facingRight ? 1 : -1;
+        ctx.scale(flip, 1);
+
+        const hopY = isCelebrating ? -Math.abs(Math.sin(Date.now() / 120)) * 14 : (isTrotting ? -Math.abs(Math.sin(brus.walkAnim)) * 4 : 0);
+        const wagAngle = Math.sin(Date.now() / (isAlert ? 80 : 180)) * (isAlert ? 0.6 : 0.45);
+
+        // 1. Drop shadow 3D
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.beginPath();
+        ctx.ellipse(0, 10, isSitting ? 13 : 15, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.translate(0, hopY);
+
+        // 2. Tail with white tip
+        ctx.save();
+        ctx.translate(-10, isSitting ? 2 : -2);
+        ctx.rotate(-0.4 + wagAngle);
+        ctx.strokeStyle = "#b45309";
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(-10, -8, -14, -15);
+        ctx.stroke();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(-11, -10);
+        ctx.lineTo(-14, -15);
+        ctx.stroke();
+        ctx.restore();
+
+        // 3. Hind legs
+        ctx.fillStyle = "#92400e";
+        if (isSitting) {
+            ctx.beginPath();
+            ctx.ellipse(-6, 7, 6, 4, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            const legOffset = Math.sin(brus.walkAnim) * 4;
+            ctx.beginPath();
+            ctx.ellipse(-8 + legOffset, 7, 3.5, 5, 0, 0, Math.PI * 2);
+            ctx.ellipse(-4 - legOffset, 7, 3.5, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 4. Body
+        const bodyGrad = ctx.createRadialGradient(-2, 0, 3, 0, 0, 16);
+        bodyGrad.addColorStop(0, "#fef08a");
+        bodyGrad.addColorStop(0.4, "#f59e0b");
+        bodyGrad.addColorStop(1, "#b45309");
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        if (isSitting) {
+            ctx.ellipse(-1, 2, 11, 10, 0.2, 0, Math.PI * 2);
+        } else {
+            ctx.ellipse(-1, 0, 13, 9, 0, 0, Math.PI * 2);
+        }
+        ctx.fill();
+
+        // Chest patch
+        ctx.fillStyle = "#fffbeb";
+        ctx.beginPath();
+        ctx.ellipse(5, 0, 5, 6, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Front legs
+        ctx.fillStyle = "#d97706";
+        if (isSitting) {
+            ctx.beginPath();
+            ctx.ellipse(6, 6, 3, 6, 0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(6, 9, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            const frontLegOffset = Math.sin(brus.walkAnim + Math.PI) * 4;
+            ctx.beginPath();
+            ctx.ellipse(5 + frontLegOffset, 6, 3, 6, 0, 0, Math.PI * 2);
+            ctx.ellipse(9 - frontLegOffset, 6, 3, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(5 + frontLegOffset, 8, 2.8, 0, Math.PI * 2);
+            ctx.arc(9 - frontLegOffset, 8, 2.8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 5. Collar & Golden Tag
+        ctx.strokeStyle = "#2563eb";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(6, -6, 6, 0.2 * Math.PI, 0.8 * Math.PI);
+        ctx.stroke();
+        ctx.fillStyle = "#facc15";
+        ctx.beginPath();
+        ctx.arc(6, -2, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 6. Puppy Head
+        const headGrad = ctx.createRadialGradient(8, -11, 2, 8, -10, 10);
+        headGrad.addColorStop(0, "#fef08a");
+        headGrad.addColorStop(0.5, "#f59e0b");
+        headGrad.addColorStop(1, "#b45309");
+        ctx.fillStyle = headGrad;
+        ctx.beginPath();
+        ctx.arc(8, -10, 9.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cream Muzzle
+        ctx.fillStyle = "#fffbeb";
+        ctx.beginPath();
+        ctx.ellipse(12, -8, 5, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Nose
+        ctx.fillStyle = "#0f172a";
+        ctx.beginPath();
+        ctx.ellipse(15, -9, 2, 1.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mouth
+        ctx.strokeStyle = "#78350f";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (isCelebrating || isTrotting) {
+            ctx.arc(13, -7, 2.5, 0, Math.PI);
+            ctx.stroke();
+            ctx.fillStyle = "#f43f5e";
+            ctx.beginPath();
+            ctx.arc(13, -6.2, 1.6, 0, Math.PI);
+            ctx.fill();
+        } else {
+            ctx.arc(13, -7.5, 2, 0.1 * Math.PI, 0.9 * Math.PI);
+            ctx.stroke();
+        }
+
+        // Eyes
+        const eyeX = 10;
+        const eyeY = -12;
+        ctx.fillStyle = "#1e293b";
+        ctx.beginPath();
+        ctx.arc(eyeX, eyeY, isAlert ? 2.8 : 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(eyeX + 0.6, eyeY - 0.7, 0.9, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 7. Ears
+        const earFlap = isTrotting ? Math.sin(brus.walkAnim) * 0.2 : 0;
+        ctx.fillStyle = "#78350f";
+        if (isAlert) {
+            ctx.beginPath();
+            ctx.moveTo(3, -16);
+            ctx.lineTo(5, -27);
+            ctx.lineTo(10, -18);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(0, -14);
+            ctx.lineTo(1, -24);
+            ctx.lineTo(6, -16);
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            ctx.save();
+            ctx.translate(3, -15);
+            ctx.rotate(0.3 + earFlap);
+            ctx.beginPath();
+            ctx.ellipse(0, 5, 4, 8, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // 8. Emotional Cues
+        if (isAlert) {
+            ctx.restore();
+            ctx.save();
+            ctx.translate(brus.x, brus.y + hopY);
+            ctx.font = "bold 13px 'Orbitron', sans-serif";
+            ctx.fillStyle = "#facc15";
+            ctx.textAlign = "center";
+            ctx.shadowColor = "#eab308";
+            ctx.shadowBlur = 8;
+            ctx.fillText("¡ALERTA!", 0, -28);
+            ctx.restore();
+            return;
+        } else if (isCelebrating) {
+            ctx.restore();
+            ctx.save();
+            ctx.translate(brus.x, brus.y + hopY);
+            ctx.font = "14px 'Orbitron', sans-serif";
+            ctx.fillStyle = "#38bdf8";
+            ctx.textAlign = "center";
+            ctx.shadowColor = "#38bdf8";
+            ctx.shadowBlur = 10;
+            ctx.fillText("⭐", 0, -28);
+            ctx.restore();
+            return;
+        }
+
+        ctx.restore();
+    }
+
+    drawStealthVignette(ctx, w, h) {
+        const me = this.players.get(this.myPlayerId);
+        if (!me || !me.alive || !me.in_stealth) return;
+
+        ctx.save();
+        const time = Date.now() / 350;
+        const pulse = Math.sin(time) * 4;
+
+        ctx.translate(me.renderX, me.renderY);
+
+        const shadowGrad = ctx.createRadialGradient(0, 0, 16, 0, 0, 50 + pulse);
+        shadowGrad.addColorStop(0, "rgba(15, 23, 42, 0.75)");
+        shadowGrad.addColorStop(0.5, "rgba(15, 23, 42, 0.45)");
+        shadowGrad.addColorStop(1, "rgba(15, 23, 42, 0)");
+
+        ctx.fillStyle = shadowGrad;
+        ctx.beginPath();
+        ctx.arc(0, 0, 50 + pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = "bold 9px 'Orbitron', sans-serif";
+        ctx.fillStyle = "#38bdf8";
+        ctx.textAlign = "center";
+        ctx.shadowColor = "#0284c7";
+        ctx.shadowBlur = 6;
+        ctx.fillText("🌿 MODO SIGILO (OCULTO)", 0, 36);
+
+        ctx.restore();
     }
 
     drawHat(ctx, hatId, x, y) {

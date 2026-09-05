@@ -101,6 +101,20 @@ VENTS = [
     {"id": "vent_6", "x": 1080, "y": 1420, "connected_to": "vent_5", "room": "Sala de Música"}
 ]
 
+# Stealth zones inspired by Koira (hunter evasion): players moving slowly or stationary are hidden from long-distance detection
+STEALTH_ZONES = [
+    {"x": 880, "y": 850, "w": 250, "h": 160, "name": "Cabina Cafetería"},
+    {"x": 1550, "y": 850, "w": 250, "h": 160, "name": "Rincón Comedor"},
+    {"x": 1020, "y": 1650, "w": 200, "h": 170, "name": "Entre Bastidores"},
+    {"x": 120, "y": 120, "w": 140, "h": 140, "name": "Penumbra Reactor"}
+]
+
+def is_in_stealth_zone(x, y):
+    for z in STEALTH_ZONES:
+        if z["x"] <= x <= (z["x"] + z["w"]) and z["y"] <= y <= (z["y"] + z["h"]):
+            return True
+    return False
+
 # EXACT HATS FROM MATIAS & BRUS DRAWINGS
 HATS_CATALOG = [
     {"id": "none", "name": "Sin Sombrero", "icon": "❌"},
@@ -483,8 +497,10 @@ class CloneImpostor:
 
         for p in target_players:
             if p.alive and not getattr(p, 'is_clone', False) and p.id != self.id:
+                is_stealth = getattr(p, 'in_stealth', False)
+                max_detect = 160.0 if is_stealth else 650.0
                 dist = math.hypot(self.x - p.x, self.y - p.y)
-                if dist < closest_dist:
+                if dist < max_detect and dist < closest_dist:
                     closest_dist = dist
                     closest_target = p
 
@@ -567,6 +583,7 @@ class Player:
         self.ready = False
         self.kill_cooldown = KILL_COOLDOWN
         self.punch_cooldown = 0.0
+        self.in_stealth = False
         self.current_task = None
         self.task_progress = 0.0
         self.completed_tasks = set()
@@ -632,6 +649,7 @@ class Player:
             "total_tasks_count": len(self.assigned_tasks),
             "kills": self.kills,
             "ping": self.ping,
+            "in_stealth": getattr(self, "in_stealth", False),
             "is_clone": False
         }
 
@@ -797,6 +815,9 @@ class GameRoom:
                     new_x = p.x + p.vx * dt
                     new_y = p.y + p.vy * dt
                     p.x, p.y = resolve_obstacle_collision(new_x, new_y, PLAYER_RADIUS)
+                    p.in_stealth = is_in_stealth_zone(p.x, p.y) and (math.hypot(p.vx, p.vy) < 25)
+                else:
+                    p.in_stealth = False
 
                 if p.punch_cooldown > 0:
                     p.punch_cooldown = max(0.0, p.punch_cooldown - dt)

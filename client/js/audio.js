@@ -9,11 +9,19 @@ class SoundEngine {
     init() {
         if (!this.ctx) {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.ctx = new AudioContext();
+            if (AudioContext) {
+                this.ctx = new AudioContext();
+            }
         }
-        if (this.ctx.state === 'suspended') {
-            this.ctx.resume();
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
         }
+    }
+
+    canPlay() {
+        if (!this.enabled) return false;
+        this.init();
+        return Boolean(this.ctx && this.ctx.state === 'running');
     }
 
     playClick() {
@@ -215,6 +223,66 @@ class SoundEngine {
         gain.connect(this.ctx.destination);
         osc.start(now);
         osc.stop(now + 0.18);
+    }
+
+    // Koira-inspired Brus bark (friendly or warning alert)
+    playDogBark(isAlert = false) {
+        if (!this.canPlay()) return;
+        const now = this.ctx.currentTime;
+        const baseFreq = isAlert ? 580 : 420;
+        const count = isAlert ? 2 : 1;
+
+        for (let i = 0; i < count; i++) {
+            const startTime = now + i * 0.12;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = isAlert ? 'sawtooth' : 'triangle';
+            osc.frequency.setValueAtTime(baseFreq, startTime);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.5, startTime + 0.09);
+            gain.gain.setValueAtTime(0.25, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.09);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(startTime);
+            osc.stop(startTime + 0.09);
+        }
+    }
+
+    // Koira-inspired Harmonious Pentatonic Chime for tasks and rhythm combos
+    playPentatonicChime(step = 0) {
+        if (!this.canPlay()) return;
+        const PENTATONIC = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50]; // C5, D5, E5, G5, A5, C6
+        const freq = PENTATONIC[Math.abs(step) % PENTATONIC.length];
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.005, now + 0.35);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.35);
+    }
+
+    playPentatonicArpeggio() {
+        if (!this.canPlay()) return;
+        const PENTATONIC = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        const now = this.ctx.currentTime;
+        PENTATONIC.forEach((freq, idx) => {
+            const t = now + idx * 0.07;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, t);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.005, t + 0.3);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.3);
+        });
     }
 }
 
