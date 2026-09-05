@@ -93,6 +93,9 @@ class NetworkClient {
             case "error":
                 this.emit(msg.type, msg);
                 break;
+            default:
+                this.emit(msg.type, msg);
+                break;
         }
     }
 

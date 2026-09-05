@@ -245,6 +245,7 @@ async def handle_ws_message(writer, msg_str):
 
     elif msg_type == "return_to_lobby":
         if room:
+            room.episode = (room.episode % room.max_episodes) + 1
             room.state = "LOBBY"
             room.winner = None
             room.dead_bodies = []
@@ -257,6 +258,7 @@ async def handle_ws_message(writer, msg_str):
                 "timer": 0.0,
                 "result": None
             }
+            room.init_world_entities()
             for p in room.players.values():
                 p.alive = True
                 p.hp = 100
@@ -266,7 +268,8 @@ async def handle_ws_message(writer, msg_str):
                 p.in_vent = None
             await broadcast_to_room(room_id, {
                 "type": "returned_to_lobby",
-                "room_id": room_id
+                "room_id": room_id,
+                "episode": room.episode
             })
 
     elif msg_type == "input":

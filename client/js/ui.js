@@ -50,6 +50,10 @@ class UIManager {
         this.gameOverModal = document.getElementById("game-over-modal");
         this.wardrobeModal = document.getElementById("wardrobe-modal");
         this.songBattleModal = document.getElementById("song-battle-modal");
+        this.minimapModal = document.getElementById("minimap-modal");
+        this.btnToggleMap = document.getElementById("btn-toggle-map");
+        this.btnCloseMap = document.getElementById("btn-close-map");
+        this.minimapCanvas = document.getElementById("minimapCanvas");
         this.pwaInstallBox = document.getElementById("pwa-install-box");
         this.btnInstallPwa = document.getElementById("btn-install-pwa");
 
@@ -167,6 +171,26 @@ class UIManager {
             taskBarContainer.addEventListener("click", () => {
                 this.taskChecklist.classList.toggle("mobile-open");
                 this.vibrate(25);
+            });
+        }
+
+        // Toggle Radar Minimap
+        if (this.btnToggleMap) {
+            this.btnToggleMap.addEventListener("click", (e) => {
+                e.stopPropagation();
+                this.vibrate(25);
+                window.soundEngine.playClick();
+                if (this.minimapModal) {
+                    this.minimapModal.classList.toggle("hidden");
+                    if (!this.minimapModal.classList.contains("hidden") && window.gameEngine) {
+                        window.gameEngine.drawMinimap(this.minimapCanvas);
+                    }
+                }
+            });
+        }
+        if (this.btnCloseMap) {
+            this.btnCloseMap.addEventListener("click", () => {
+                if (this.minimapModal) this.minimapModal.classList.add("hidden");
             });
         }
 
@@ -746,6 +770,35 @@ class UIManager {
             if (snapshot.state === "GAME_OVER" && !this.gameOverModal.classList.contains("active")) {
                 this.showGameOver(snapshot.winner);
             }
+
+            // Episode display update
+            if (snapshot.episode) {
+                const epEl = document.getElementById("episode-display");
+                if (epEl) epEl.textContent = `EP ${snapshot.episode}`;
+            }
+
+            // Meeting result verdict display during MEETING_RESULT
+            if (snapshot.state === "MEETING_RESULT" && snapshot.meeting && snapshot.meeting.result) {
+                const statusMsg = document.getElementById("vote-status-msg");
+                if (statusMsg) {
+                    statusMsg.textContent = snapshot.meeting.result;
+                    statusMsg.style.color = "#ffd600";
+                    statusMsg.style.fontWeight = "bold";
+                    statusMsg.style.fontSize = "1.05rem";
+                }
+                const countdownEl = document.getElementById("meeting-countdown");
+                if (countdownEl) countdownEl.textContent = "EXPULSIÓN";
+            }
+
+            // Auto-hide meeting modal when match resumes to PLAYING
+            if (snapshot.state === "PLAYING" && !this.meetingModal.classList.contains("hidden")) {
+                this.meetingModal.classList.add("hidden");
+            }
+
+            // Real-time minimap radar update when modal is open
+            if (this.minimapModal && !this.minimapModal.classList.contains("hidden") && window.gameEngine) {
+                window.gameEngine.drawMinimap(this.minimapCanvas);
+            }
         });
 
         window.network.on("punch_event", (evt) => {
@@ -794,6 +847,8 @@ class UIManager {
         window.network.on("sound_event", (evt) => {
             if (evt.sound === "kill") {
                 window.soundEngine.playKill();
+            } else if (evt.sound === "shapeshift") {
+                window.soundEngine.playCloneBeam();
             }
         });
 
@@ -873,6 +928,7 @@ class UIManager {
         document.getElementById("rhythm-score").textContent = "0";
         document.getElementById("rhythm-combo").textContent = "0";
         this.songBattleModal.classList.remove("hidden");
+        window.network.sendStartTask("task_8");
         this.startRhythmBattle();
     }
 
@@ -891,7 +947,8 @@ class UIManager {
                 window.soundEngine.playTaskComplete();
                 const li = document.getElementById("task-item-task_8");
                 if (li) li.classList.add("completed");
-                setTimeout(() => this.closeSongBattleModal(), 500);
+                window.network.sendCompleteTask("task_8");
+                setTimeout(() => this.closeSongBattleModal(true), 500);
             }
         }, 600);
     }
@@ -915,10 +972,16 @@ class UIManager {
         this.highlightTargetArrow(dir);
     }
 
-    closeSongBattleModal() {
+    closeSongBattleModal(completed = false) {
         this.songBattleActive = false;
-        if (this.songTimer) clearInterval(this.songTimer);
+        if (this.songTimer) {
+            clearInterval(this.songTimer);
+            this.songTimer = null;
+        }
         this.songBattleModal.classList.add("hidden");
+        if (!completed) {
+            window.network.sendCancelTask();
+        }
     }
 
     updateWaitingPlayers(players) {
@@ -1266,13 +1329,17 @@ class UIManager {
             grid.appendChild(card);
         });
 
+        if (this.meetingTimer) clearInterval(this.meetingTimer);
         let timeLeft = 30;
         const countdownEl = document.getElementById("meeting-countdown");
-        const meetingTimer = setInterval(() => {
+        this.meetingTimer = setInterval(() => {
             timeLeft -= 1;
-            countdownEl.textContent = timeLeft;
-            if (timeLeft <= 0 || window.gameEngine.gameState !== "MEETING") {
-                clearInterval(meetingTimer);
+            if (window.gameEngine.gameState === "MEETING") {
+                countdownEl.textContent = Math.max(0, timeLeft);
+            }
+            if (timeLeft <= 0 || window.gameEngine.gameState === "PLAYING" || window.gameEngine.gameState === "GAME_OVER") {
+                clearInterval(this.meetingTimer);
+                this.meetingTimer = null;
                 this.meetingModal.classList.add("hidden");
             }
         }, 1000);

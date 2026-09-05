@@ -44,8 +44,13 @@
                 <span class="ping-dot"></span>
                 <span id="ping-display">-- ms</span>
             </div>
+            <div class="stats-pill" style="border-color: #f1c40f;">
+                <span id="episode-display" style="color: #f1c40f; font-weight: 900; letter-spacing: 0.5px;">EP 1</span>
+            </div>
             <!-- Graphics quality toggle button -->
             <button id="btn-gfx-quality" class="gfx-pill-btn" title="Calidad Gráfica">✨ ULTRA</button>
+            <!-- Minimap radar toggle button -->
+            <button id="btn-toggle-map" class="icon-hud-btn" title="Mapa / Radar Espacial">🗺️</button>
             <!-- Toggle Tasks Checklist for Mobile -->
             <button id="btn-toggle-tasks" class="icon-hud-btn" title="Lista de Tareas">📋</button>
             <!-- Fullscreen button for mobile -->
@@ -228,6 +233,22 @@
                 <h1 id="game-over-title">VICTORIA</h1>
                 <p id="game-over-subtitle">Los tripulantes ganaron la partida.</p>
                 <button id="btn-return-lobby" class="primary-btn">VOLVER A LA SALA</button>
+            </div>
+        </div>
+
+        <!-- Minimap Radar Modal -->
+        <div id="minimap-modal" class="modal-backdrop hidden">
+            <div class="modal-box minimap-window" style="max-width: 92vw; width: 620px; text-align: center;">
+                <div class="modal-header">
+                    <h3>🗺️ RADAR ESPACIAL: MATIAS & BRUS</h3>
+                    <button class="modal-close-btn" id="btn-close-map">✕</button>
+                </div>
+                <div style="position: relative; margin: 10px auto; border-radius: 12px; overflow: hidden; border: 2px solid #38bdf8; background: #020617; box-shadow: 0 0 20px rgba(56,189,248,0.3);">
+                    <canvas id="minimapCanvas" width="560" height="420" style="width: 100%; max-width: 560px; height: auto; display: block;"></canvas>
+                </div>
+                <p style="font-size: 0.85rem; color: #cbd5e1; margin-top: 6px;">
+                    🟡 Tú &nbsp;|&nbsp; 🟢 Tareas &nbsp;|&nbsp; 🔴 Botón Rojo &nbsp;|&nbsp; 🐱 Gatos &nbsp;|&nbsp; 🌀 Alcantarillas
+                </p>
             </div>
         </div>
 

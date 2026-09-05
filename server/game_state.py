@@ -642,6 +642,8 @@ class GameRoom:
         }
         self.created_at = time.time()
         self.last_tick = time.time()
+        self.episode = 1
+        self.max_episodes = 9
         self.init_world_entities()
 
     def init_world_entities(self):
@@ -840,12 +842,34 @@ class GameRoom:
             for clone in self.clone_impostors:
                 clone.tick(dt, all_alive_humans)
 
+            # Check if any player's HP dropped to 0 (from clones, brawls, etc.)
+            for p in self.players.values():
+                if p.alive and p.hp <= 0:
+                    p.alive = False
+                    self.dead_bodies.append({
+                        "id": f"body_{uuid.uuid4().hex[:6]}",
+                        "victim_id": p.id,
+                        "victim_name": p.name,
+                        "color": p.color,
+                        "hat": p.hat,
+                        "skin": p.skin,
+                        "x": round(p.x, 1),
+                        "y": round(p.y, 1),
+                        "time": time.time()
+                    })
+
             self.check_game_over()
 
         elif self.state == "MEETING":
             self.meeting["timer"] -= dt
             if self.meeting["timer"] <= 0:
                 self.resolve_meeting()
+
+        elif self.state == "MEETING_RESULT":
+            self.meeting_result_timer = getattr(self, "meeting_result_timer", 4.0) - dt
+            if self.meeting_result_timer <= 0:
+                if not self.check_game_over():
+                    self.state = "PLAYING"
 
     def try_punch(self, attacker_id):
         if self.state != "PLAYING":
@@ -896,6 +920,20 @@ class GameRoom:
                 dist = math.hypot(attacker.x - other.x, attacker.y - other.y)
                 if dist < ATTACK_RANGE:
                     other.hp = max(0, other.hp - damage)
+                    if other.hp <= 0:
+                        other.alive = False
+                        self.dead_bodies.append({
+                            "id": f"body_{uuid.uuid4().hex[:6]}",
+                            "victim_id": other.id,
+                            "victim_name": other.name,
+                            "color": other.color,
+                            "hat": other.hat,
+                            "skin": other.skin,
+                            "x": round(other.x, 1),
+                            "y": round(other.y, 1),
+                            "time": time.time()
+                        })
+                        self.check_game_over()
                     hit_info = {"type": "player_hit", "target_id": other.id, "target_hp": other.hp, "x": other.x, "y": other.y, "weapon": attacker.weapon}
                     return True, f"¡Golpeaste a {other.name}!", hit_info
 
@@ -1078,10 +1116,11 @@ class GameRoom:
         self.dead_bodies = []
 
         if not self.check_game_over():
-            self.state = "PLAYING"
+            self.state = "MEETING_RESULT"
+            self.meeting_result_timer = 4.0
 
     def check_game_over(self):
-        if self.state != "PLAYING":
+        if self.state not in ("PLAYING", "MEETING_RESULT"):
             return False
 
         alive_players = [p for p in self.players.values() if p.alive and p.hp > 0]
@@ -1134,13 +1173,14 @@ class GameRoom:
             # Invisible player is hidden from other alive players
             if p.invis_timer > 0 and p.id != player_id and is_alive and viewer_role != "ghost":
                 continue
-            players_data.append(p.to_dict(viewer_role=viewer_role if not is_alive else "ghost" if not is_alive else viewer_role, is_self=(p.id == player_id)))
+            players_data.append(p.to_dict(viewer_role="ghost" if not is_alive else viewer_role, is_self=(p.id == player_id)))
 
         return {
             "type": "sync",
             "room_id": self.id,
             "state": self.state,
             "winner": self.winner,
+            "episode": getattr(self, "episode", 1),
             "task_bar": task_percentage,
             "players": players_data,
             "cats": [c.to_dict() for c in self.zombie_cats],
@@ -1149,6 +1189,6 @@ class GameRoom:
             "clones": [cl.to_dict() for cl in self.clone_impostors],
             "collectibles": [col.to_dict() for col in self.collectibles if not col.collected],
             "bodies": self.dead_bodies,
-            "meeting": self.meeting if self.state == "MEETING" else None,
+            "meeting": self.meeting if self.state in ("MEETING", "MEETING_RESULT") else None,
             "timestamp": time.time()
         }

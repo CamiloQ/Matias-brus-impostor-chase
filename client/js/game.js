@@ -202,6 +202,10 @@ class GameEngine {
             if (this.nearbyBody) {
                 window.network.sendReport(true, this.nearbyBody.id);
             }
+        } else if (e.code === "KeyM") {
+            if (window.uiManager && window.uiManager.btnToggleMap) {
+                window.uiManager.btnToggleMap.click();
+            }
         }
     }
 
@@ -293,8 +297,27 @@ class GameEngine {
                 this.myRole = pData.role;
                 this.myGender = pData.gender;
                 this.myCharacter = pData.character;
+                if (Array.isArray(pData.completed_tasks)) {
+                    this.completedTasks = new Set(pData.completed_tasks);
+                }
             }
         });
+
+        // Trigger sound on collectible pickup
+        if (this.lastCollectiblesCount !== undefined && snapshot.collectibles) {
+            if (snapshot.collectibles.length < this.lastCollectiblesCount) {
+                if (window.soundEngine) window.soundEngine.playItemPickup();
+            }
+        }
+        this.lastCollectiblesCount = (snapshot.collectibles || []).length;
+
+        // Trigger sound on clone spawning
+        if (this.lastCloneCount !== undefined && snapshot.clones) {
+            if (snapshot.clones.length > this.lastCloneCount) {
+                if (window.soundEngine) window.soundEngine.playCloneBeam();
+            }
+        }
+        this.lastCloneCount = (snapshot.clones || []).length;
 
         for (let id of this.players.keys()) {
             if (!activeIds.has(id)) {
@@ -319,11 +342,14 @@ class GameEngine {
             return;
         }
 
-        // 1. Tasks
+        // 1. Tasks (only uncompleted ones)
         this.nearbyTask = null;
         if (this.myRole === "crewmate" && this.assignedTasks) {
             for (let t of this.map.tasks) {
                 if (this.assignedTasks.includes(t.id)) {
+                    if (this.completedTasks && this.completedTasks.has(t.id)) {
+                        continue;
+                    }
                     const dist = Math.hypot(me.renderX - t.x, me.renderY - t.y);
                     if (dist <= t.radius + 20) {
                         this.nearbyTask = t;
@@ -3711,6 +3737,112 @@ class GameEngine {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.drawImage(maskCanvas, 0, 0);
         ctx.restore();
+    }
+
+    drawMinimap(canvas) {
+        if (!canvas || !this.map) return;
+        const ctx = canvas.getContext("2d");
+        const cw = canvas.width;
+        const ch = canvas.height;
+        const scaleX = cw / 2800;
+        const scaleY = ch / 2100;
+
+        // Background space
+        ctx.fillStyle = "#020617";
+        ctx.fillRect(0, 0, cw, ch);
+
+        // Rooms & Floor Zones
+        const rooms = [
+            { name: "REACTOR", x: 100, y: 100, w: 470, h: 420, color: "rgba(59, 130, 246, 0.15)" },
+            { name: "CAFETERÍA", x: 850, y: 350, w: 1000, h: 700, color: "rgba(241, 196, 15, 0.15)" },
+            { name: "HABITACIÓN", x: 2050, y: 100, w: 650, h: 520, color: "rgba(168, 85, 247, 0.15)" },
+            { name: "ELECTRICIDAD", x: 150, y: 1000, w: 520, h: 470, color: "rgba(234, 179, 8, 0.15)" },
+            { name: "SALA DE MÚSICA", x: 1000, y: 1350, w: 770, h: 520, color: "rgba(236, 72, 153, 0.15)" },
+            { name: "NAVEGACIÓN", x: 2050, y: 800, w: 670, h: 620, color: "rgba(34, 197, 94, 0.15)" }
+        ];
+
+        rooms.forEach(r => {
+            ctx.fillStyle = r.color;
+            ctx.fillRect(r.x * scaleX, r.y * scaleY, r.w * scaleX, r.h * scaleY);
+            ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(r.x * scaleX, r.y * scaleY, r.w * scaleX, r.h * scaleY);
+
+            ctx.fillStyle = "rgba(226, 232, 240, 0.75)";
+            ctx.font = "bold 9px 'Orbitron', sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(r.name, (r.x + r.w / 2) * scaleX, (r.y + 20) * scaleY);
+        });
+
+        // Obstacles (walls)
+        if (this.map.obstacles) {
+            ctx.fillStyle = "#334155";
+            this.map.obstacles.forEach(obs => {
+                ctx.fillRect(obs.x * scaleX, obs.y * scaleY, obs.w * scaleX, obs.h * scaleY);
+            });
+        }
+
+        // Vents
+        if (this.map.vents) {
+            ctx.fillStyle = "#06b6d4";
+            this.map.vents.forEach(v => {
+                ctx.beginPath();
+                ctx.arc(v.x * scaleX, v.y * scaleY, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // Emergency Button
+        if (this.map.emergency_button) {
+            const eb = this.map.emergency_button;
+            ctx.fillStyle = "#ef4444";
+            ctx.beginPath();
+            ctx.arc(eb.x * scaleX, eb.y * scaleY, 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Tasks
+        if (this.map.tasks) {
+            this.map.tasks.forEach(t => {
+                const isAssigned = (this.assignedTasks || []).includes(t.id);
+                const isDone = this.completedTasks && this.completedTasks.has(t.id);
+                ctx.fillStyle = isDone ? "#64748b" : (isAssigned ? "#22c55e" : "#0ea5e9");
+                ctx.beginPath();
+                ctx.arc(t.x * scaleX, t.y * scaleY, isAssigned ? 4.5 : 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // Zombie Cats
+        (this.zombieCats || []).forEach(cat => {
+            if (cat.alive) {
+                ctx.fillStyle = "#f472b6";
+                ctx.beginPath();
+                ctx.arc(cat.x * scaleX, cat.y * scaleY, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+
+        // Current Player (Radar Ping)
+        const me = this.players.get(this.myPlayerId);
+        if (me) {
+            ctx.fillStyle = "#f1c40f";
+            ctx.beginPath();
+            ctx.arc(me.renderX * scaleX, me.renderY * scaleY, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Glowing ring
+            ctx.strokeStyle = "rgba(241, 196, 15, 0.75)";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(me.renderX * scaleX, me.renderY * scaleY, 10, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 9px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("TÚ", me.renderX * scaleX, (me.renderY * scaleY) - 9);
+        }
     }
 }
 
