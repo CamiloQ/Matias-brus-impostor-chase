@@ -1,4 +1,5 @@
 """Module containing backend logic."""
+
 import time
 import math
 import random
@@ -25,7 +26,6 @@ MAP_OBSTACLES = [
     {"x": 420, "y": 500, "w": 130, "h": 20, "type": "wall"},
     {"x": 550, "y": 100, "w": 20, "h": 420, "type": "wall"},
     {"x": 280, "y": 260, "w": 110, "h": 110, "type": "generator"},
-
     # Cafetería de Comida Central (Matias & Brus Hub)
     {"x": 850, "y": 350, "w": 1000, "h": 20, "type": "wall"},
     {"x": 850, "y": 1050, "w": 1000, "h": 20, "type": "wall"},
@@ -33,60 +33,180 @@ MAP_OBSTACLES = [
     {"x": 850, "y": 800, "w": 20, "h": 270, "type": "wall"},
     {"x": 1850, "y": 350, "w": 20, "h": 220, "type": "wall"},
     {"x": 1850, "y": 800, "w": 20, "h": 270, "type": "wall"},
-    {"x": 1270, "y": 620, "w": 160, "h": 160, "type": "meeting_table"}, # Mesa redonda de reuniones con boton de emergencia
-    {"x": 980, "y": 450, "w": 150, "h": 70, "type": "buffet"},   # Barra de comida / buffet caliente
-    {"x": 1570, "y": 450, "w": 150, "h": 70, "type": "buffet"},  # Barra de bebidas y refrescos
-    {"x": 1180, "y": 380, "w": 70, "h": 65, "type": "fridge"},   # Nevera de cafeteria con comida
-    {"x": 1730, "y": 380, "w": 70, "h": 55, "type": "microwave"},# Alacena con microondas
-    {"x": 1000, "y": 880, "w": 180, "h": 90, "type": "table"},   # Mesa de comensales 1
-    {"x": 1570, "y": 880, "w": 180, "h": 90, "type": "table"},   # Mesa de comensales 2
-
+    {
+        "x": 1270,
+        "y": 620,
+        "w": 160,
+        "h": 160,
+        "type": "meeting_table",
+    },  # Mesa redonda de reuniones con boton de emergencia
+    {
+        "x": 980,
+        "y": 450,
+        "w": 150,
+        "h": 70,
+        "type": "buffet",
+    },  # Barra de comida / buffet caliente
+    {
+        "x": 1570,
+        "y": 450,
+        "w": 150,
+        "h": 70,
+        "type": "buffet",
+    },  # Barra de bebidas y refrescos
+    {
+        "x": 1180,
+        "y": 380,
+        "w": 70,
+        "h": 65,
+        "type": "fridge",
+    },  # Nevera de cafeteria con comida
+    {
+        "x": 1730,
+        "y": 380,
+        "w": 70,
+        "h": 55,
+        "type": "microwave",
+    },  # Alacena con microondas
+    {"x": 1000, "y": 880, "w": 180, "h": 90, "type": "table"},  # Mesa de comensales 1
+    {"x": 1570, "y": 880, "w": 180, "h": 90, "type": "table"},  # Mesa de comensales 2
     # Sala de Habitación / Dormitorios (Top Right)
     {"x": 2050, "y": 100, "w": 650, "h": 20, "type": "wall"},
-    {"x": 2050, "y": 100, "w": 20, "h": 180, "type": "wall"},   # Pared oeste norte (puerta de 160px de 280 a 440)
-    {"x": 2050, "y": 440, "w": 20, "h": 160, "type": "wall"},   # Pared oeste sur
-    {"x": 2050, "y": 600, "w": 230, "h": 20, "type": "wall"},   # Pared sur oeste (puerta de 160px de 2280 a 2440)
-    {"x": 2440, "y": 600, "w": 260, "h": 20, "type": "wall"},   # Pared sur este
+    {
+        "x": 2050,
+        "y": 100,
+        "w": 20,
+        "h": 180,
+        "type": "wall",
+    },  # Pared oeste norte (puerta de 160px de 280 a 440)
+    {"x": 2050, "y": 440, "w": 20, "h": 160, "type": "wall"},  # Pared oeste sur
+    {
+        "x": 2050,
+        "y": 600,
+        "w": 230,
+        "h": 20,
+        "type": "wall",
+    },  # Pared sur oeste (puerta de 160px de 2280 a 2440)
+    {"x": 2440, "y": 600, "w": 260, "h": 20, "type": "wall"},  # Pared sur este
     {"x": 2700, "y": 100, "w": 20, "h": 520, "type": "wall"},
-    {"x": 1930, "y": 180, "w": 60, "h": 60, "type": "washer"},   # Lavadora automática con tambor
-    {"x": 2150, "y": 180, "w": 110, "h": 70, "type": "bed"},      # Cama Matias
-    {"x": 2350, "y": 180, "w": 110, "h": 70, "type": "bed"},      # Cama Brus
-    {"x": 2540, "y": 180, "w": 110, "h": 70, "type": "bed"},      # Cama Invitado
-    {"x": 2300, "y": 460, "w": 160, "h": 60, "type": "wardrobe"}, # Armario de Trajes y Sombreros
-
+    {
+        "x": 1930,
+        "y": 180,
+        "w": 60,
+        "h": 60,
+        "type": "washer",
+    },  # Lavadora automática con tambor
+    {"x": 2150, "y": 180, "w": 110, "h": 70, "type": "bed"},  # Cama Matias
+    {"x": 2350, "y": 180, "w": 110, "h": 70, "type": "bed"},  # Cama Brus
+    {"x": 2540, "y": 180, "w": 110, "h": 70, "type": "bed"},  # Cama Invitado
+    {
+        "x": 2300,
+        "y": 460,
+        "w": 160,
+        "h": 60,
+        "type": "wardrobe",
+    },  # Armario de Trajes y Sombreros
     # Electricidad (Lower Left)
     {"x": 150, "y": 1000, "w": 500, "h": 20, "type": "wall"},
     {"x": 150, "y": 1000, "w": 20, "h": 450, "type": "wall"},
     {"x": 150, "y": 1450, "w": 500, "h": 20, "type": "wall"},
     {"x": 650, "y": 1000, "w": 20, "h": 220, "type": "wall"},
     {"x": 350, "y": 1180, "w": 130, "h": 90, "type": "switchboard"},
-
     # Navegación y Control (Right)
     {"x": 2050, "y": 800, "w": 650, "h": 20, "type": "wall"},
     {"x": 2050, "y": 1400, "w": 650, "h": 20, "type": "wall"},
     {"x": 2700, "y": 800, "w": 20, "h": 620, "type": "wall"},
     {"x": 2050, "y": 800, "w": 20, "h": 220, "type": "wall"},
     {"x": 2050, "y": 1200, "w": 20, "h": 220, "type": "wall"},
-
     # Sala de Música, Baile y Peleas (Escenario Central Inferior)
     {"x": 1000, "y": 1350, "w": 750, "h": 20, "type": "wall"},
     {"x": 1000, "y": 1350, "w": 20, "h": 500, "type": "wall"},
     {"x": 1750, "y": 1350, "w": 20, "h": 500, "type": "wall"},
     {"x": 1000, "y": 1850, "w": 300, "h": 20, "type": "wall"},
     {"x": 1450, "y": 1850, "w": 320, "h": 20, "type": "wall"},
-    {"x": 1280, "y": 1550, "w": 180, "h": 100, "type": "stage"} # Escenario de Baile y Batalla Musical
+    {
+        "x": 1280,
+        "y": 1550,
+        "w": 180,
+        "h": 100,
+        "type": "stage",
+    },  # Escenario de Baile y Batalla Musical
 ]
 
 # Task Stations
 TASK_STATIONS = [
-    {"id": "task_1", "name": "Alinear Generador Reactor", "x": 330, "y": 310, "room": "Reactor", "radius": 50, "duration": 3.0},
-    {"id": "task_2", "name": "Preparar Huevos en Sartén", "x": 1050, "y": 490, "room": "Cafetería", "radius": 50, "duration": 2.5},
-    {"id": "task_3", "name": "Servir Refrescos Espaciales", "x": 1650, "y": 490, "room": "Cafetería", "radius": 50, "duration": 2.5},
-    {"id": "task_4", "name": "Tender Camas en Habitación", "x": 2200, "y": 210, "room": "Habitación", "radius": 50, "duration": 2.5},
-    {"id": "task_5", "name": "Cambiar Trajes en Armario", "x": 2380, "y": 490, "room": "Habitación", "radius": 50, "duration": 2.0},
-    {"id": "task_6", "name": "Reparar Fusibles de Luz", "x": 410, "y": 1220, "room": "Electricidad", "radius": 50, "duration": 3.0},
-    {"id": "task_7", "name": "Trazar Rumbo de Navegación", "x": 2380, "y": 920, "room": "Navegación", "radius": 50, "duration": 3.5},
-    {"id": "task_8", "name": "Batalla de Canción en Escenario", "x": 1370, "y": 1600, "room": "Sala de Música", "radius": 60, "duration": 4.0}
+    {
+        "id": "task_1",
+        "name": "Alinear Generador Reactor",
+        "x": 330,
+        "y": 310,
+        "room": "Reactor",
+        "radius": 50,
+        "duration": 3.0,
+    },
+    {
+        "id": "task_2",
+        "name": "Preparar Huevos en Sartén",
+        "x": 1050,
+        "y": 490,
+        "room": "Cafetería",
+        "radius": 50,
+        "duration": 2.5,
+    },
+    {
+        "id": "task_3",
+        "name": "Servir Refrescos Espaciales",
+        "x": 1650,
+        "y": 490,
+        "room": "Cafetería",
+        "radius": 50,
+        "duration": 2.5,
+    },
+    {
+        "id": "task_4",
+        "name": "Tender Camas en Habitación",
+        "x": 2200,
+        "y": 210,
+        "room": "Habitación",
+        "radius": 50,
+        "duration": 2.5,
+    },
+    {
+        "id": "task_5",
+        "name": "Cambiar Trajes en Armario",
+        "x": 2380,
+        "y": 490,
+        "room": "Habitación",
+        "radius": 50,
+        "duration": 2.0,
+    },
+    {
+        "id": "task_6",
+        "name": "Reparar Fusibles de Luz",
+        "x": 410,
+        "y": 1220,
+        "room": "Electricidad",
+        "radius": 50,
+        "duration": 3.0,
+    },
+    {
+        "id": "task_7",
+        "name": "Trazar Rumbo de Navegación",
+        "x": 2380,
+        "y": 920,
+        "room": "Navegación",
+        "radius": 50,
+        "duration": 3.5,
+    },
+    {
+        "id": "task_8",
+        "name": "Batalla de Canción en Escenario",
+        "x": 1370,
+        "y": 1600,
+        "room": "Sala de Música",
+        "radius": 60,
+        "duration": 4.0,
+    },
 ]
 
 WARDROBE_STATION = {"x": 2380, "y": 490, "radius": 60}
@@ -95,11 +215,35 @@ EMERGENCY_BUTTON = {"x": 1350, "y": 700, "radius": 80}
 
 VENTS = [
     {"id": "vent_1", "x": 480, "y": 160, "connected_to": "vent_2", "room": "Reactor"},
-    {"id": "vent_2", "x": 580, "y": 1060, "connected_to": "vent_1", "room": "Electricidad"},
+    {
+        "id": "vent_2",
+        "x": 580,
+        "y": 1060,
+        "connected_to": "vent_1",
+        "room": "Electricidad",
+    },
     {"id": "vent_3", "x": 920, "y": 420, "connected_to": "vent_4", "room": "Cafetería"},
-    {"id": "vent_4", "x": 2120, "y": 880, "connected_to": "vent_3", "room": "Navegación"},
-    {"id": "vent_5", "x": 2120, "y": 160, "connected_to": "vent_6", "room": "Habitación"},
-    {"id": "vent_6", "x": 1080, "y": 1420, "connected_to": "vent_5", "room": "Sala de Música"}
+    {
+        "id": "vent_4",
+        "x": 2120,
+        "y": 880,
+        "connected_to": "vent_3",
+        "room": "Navegación",
+    },
+    {
+        "id": "vent_5",
+        "x": 2120,
+        "y": 160,
+        "connected_to": "vent_6",
+        "room": "Habitación",
+    },
+    {
+        "id": "vent_6",
+        "x": 1080,
+        "y": 1420,
+        "connected_to": "vent_5",
+        "room": "Sala de Música",
+    },
 ]
 
 # Stealth zones inspired by Koira (hunter evasion): players moving slowly or stationary are hidden from long-distance detection
@@ -107,8 +251,9 @@ STEALTH_ZONES = [
     {"x": 880, "y": 850, "w": 250, "h": 160, "name": "Cabina Cafetería"},
     {"x": 1550, "y": 850, "w": 250, "h": 160, "name": "Rincón Comedor"},
     {"x": 1020, "y": 1650, "w": 200, "h": 170, "name": "Entre Bastidores"},
-    {"x": 120, "y": 120, "w": 140, "h": 140, "name": "Penumbra Reactor"}
+    {"x": 120, "y": 120, "w": 140, "h": 140, "name": "Penumbra Reactor"},
 ]
+
 
 def is_in_stealth_zone(x, y):
     """Docstring for is_in_stealth_zone."""
@@ -116,6 +261,7 @@ def is_in_stealth_zone(x, y):
         if z["x"] <= x <= (z["x"] + z["w"]) and z["y"] <= y <= (z["y"] + z["h"]):
             return True
     return False
+
 
 # EXACT HATS FROM MATIAS & BRUS DRAWINGS
 HATS_CATALOG = [
@@ -127,23 +273,27 @@ HATS_CATALOG = [
     {"id": "alien_antenna", "name": "Antena Alien con Luz Roja", "icon": "📡"},
     {"id": "cat_mask", "name": "Orejas de Gato Negro", "icon": "🐱"},
     {"id": "crown", "name": "Corona Real Dorada", "icon": "👑"},
-    {"id": "green_antenna", "name": "Antena Verde Espacial", "icon": "👽"}
+    {"id": "green_antenna", "name": "Antena Verde Espacial", "icon": "👽"},
 ]
 
 # EXACT SKINS / OUTFITS
 SKINS_CATALOG = [
     {"id": "onesie_tie", "name": "Mameluco Espacial con Corbata", "icon": "👔"},
-    {"id": "yrorsio_suit", "name": "Traje Negro Elegante (Estilo Yrorsio)", "icon": "🤵"},
+    {
+        "id": "yrorsio_suit",
+        "name": "Traje Negro Elegante (Estilo Yrorsio)",
+        "icon": "🤵",
+    },
     {"id": "cyber_suit", "name": "Armadura Cyber Neón", "icon": "🤖"},
     {"id": "sport_suit", "name": "Traje Deportivo de Carreras", "icon": "🏃"},
-    {"id": "ninja_suit", "name": "Túnica Ninja Sombría", "icon": "🥷"}
+    {"id": "ninja_suit", "name": "Túnica Ninja Sombría", "icon": "🥷"},
 ]
 
 # WEAPONS FOR BRAWLS
 WEAPONS_CATALOG = [
     {"id": "fists", "name": "Puñetazos Limpios", "dmg": 20, "icon": "👊"},
     {"id": "pan", "name": "Sartén con Huevo Frito", "dmg": 35, "icon": "🍳"},
-    {"id": "energy_sword", "name": "Espada de Energía Doble", "dmg": 45, "icon": "⚡"}
+    {"id": "energy_sword", "name": "Espada de Energía Doble", "dmg": 45, "icon": "⚡"},
 ]
 
 PLAYER_COLORS = [
@@ -156,7 +306,7 @@ PLAYER_COLORS = [
     {"name": "Morado Místico", "hex": "#9b59b6"},
     {"name": "Cian Láser", "hex": "#00d2ff"},
     {"name": "Lima Neón", "hex": "#00b894"},
-    {"name": "Blanco Estelar", "hex": "#ecf0f1"}
+    {"name": "Blanco Estelar", "hex": "#ecf0f1"},
 ]
 
 CHARACTERS_CATALOG = [
@@ -169,7 +319,7 @@ CHARACTERS_CATALOG = [
         "hat": "mini_matias",
         "weapon": "racket",
         "icon": "👦",
-        "desc": "Vestido de amarillo 3D, cierre metálico, mini-Matías y tenis blancos"
+        "desc": "Vestido de amarillo 3D, cierre metálico, mini-Matías y tenis blancos",
     },
     {
         "id": "fantasma",
@@ -180,7 +330,7 @@ CHARACTERS_CATALOG = [
         "hat": "microscope_bot",
         "weapon": "microscope",
         "icon": "🔬",
-        "desc": "Siempre de gris, tiene un robot/visor y microscopio científico"
+        "desc": "Siempre de gris, tiene un robot/visor y microscopio científico",
     },
     {
         "id": "gato_azul",
@@ -191,7 +341,7 @@ CHARACTERS_CATALOG = [
         "hat": "cat_mask",
         "weapon": "pan",
         "icon": "🐱",
-        "desc": "Vestido azul con sombrero de orejas de gato negro y gatito"
+        "desc": "Vestido azul con sombrero de orejas de gato negro y gatito",
     },
     {
         "id": "reina_flor",
@@ -202,7 +352,7 @@ CHARACTERS_CATALOG = [
         "hat": "crown_flower",
         "weapon": "magic_flower",
         "icon": "🌸",
-        "desc": "Vestido rosado claro, corona dorada y sombrero de flor púrpura"
+        "desc": "Vestido rosado claro, corona dorada y sombrero de flor púrpura",
     },
     {
         "id": "duende_verde",
@@ -213,7 +363,7 @@ CHARACTERS_CATALOG = [
         "hat": "leprechaun_gold",
         "weapon": "gold_pot",
         "icon": "🍀",
-        "desc": "Vestido verde con sombrero de trébol y moneda de oro brillante"
+        "desc": "Vestido verde con sombrero de trébol y moneda de oro brillante",
     },
     {
         "id": "granjero_rojo",
@@ -224,7 +374,7 @@ CHARACTERS_CATALOG = [
         "hat": "straw_hat",
         "weapon": "wheat_fork",
         "icon": "🌾",
-        "desc": "Vestido rojo y porta sombrero de paja con espiga dorada"
+        "desc": "Vestido rojo y porta sombrero de paja con espiga dorada",
     },
     {
         "id": "sanador_naranja",
@@ -235,7 +385,7 @@ CHARACTERS_CATALOG = [
         "hat": "healing_plant",
         "weapon": "herbs_basket",
         "icon": "🌿",
-        "desc": "Vestido naranja y porta sombrero de planta sanadora y canasta"
+        "desc": "Vestido naranja y porta sombrero de planta sanadora y canasta",
     },
     {
         "id": "nina_blanca",
@@ -246,7 +396,7 @@ CHARACTERS_CATALOG = [
         "hat": "butterfly_bow",
         "weapon": "star_wand",
         "icon": "🦋",
-        "desc": "Niña de blanco, rostro sonriente tierno y sombrero de mariposa"
+        "desc": "Niña de blanco, rostro sonriente tierno y sombrero de mariposa",
     },
     {
         "id": "mistico_uva",
@@ -257,7 +407,7 @@ CHARACTERS_CATALOG = [
         "hat": "alien_antennas",
         "weapon": "crystal_wand",
         "icon": "🍇",
-        "desc": "Vestido color uva y sombrero de antenas espaciales luminosas"
+        "desc": "Vestido color uva y sombrero de antenas espaciales luminosas",
     },
     {
         "id": "mago_negro",
@@ -268,7 +418,7 @@ CHARACTERS_CATALOG = [
         "hat": "magic_tophat",
         "weapon": "magic_cane",
         "icon": "🎩",
-        "desc": "Vestido negro con sombrero de copa alta de mago y conejito"
+        "desc": "Vestido negro con sombrero de copa alta de mago y conejito",
     },
     {
         "id": "ciclope_astral",
@@ -279,9 +429,10 @@ CHARACTERS_CATALOG = [
         "hat": "cyclops_eye",
         "weapon": "crystal_orb",
         "icon": "🔮",
-        "desc": "Cíclope con ojo amigable, esfera mágica y criatura en la cabeza"
-    }
+        "desc": "Cíclope con ojo amigable, esfera mágica y criatura en la cabeza",
+    },
 ]
+
 
 def check_circle_rect_collision(cx, cy, radius, rx, ry, rw, rh):
     """Docstring for check_circle_rect_collision."""
@@ -290,6 +441,7 @@ def check_circle_rect_collision(cx, cy, radius, rx, ry, rw, rh):
     dx = cx - closest_x
     dy = cy - closest_y
     return (dx * dx + dy * dy) < (radius * radius)
+
 
 def resolve_obstacle_collision(x, y, radius):
     """Docstring for resolve_obstacle_collision."""
@@ -309,7 +461,9 @@ def resolve_obstacle_collision(x, y, radius):
                 overlap_right = (rx + rw) - x
                 overlap_top = y - ry
                 overlap_bottom = (ry + rh) - y
-                min_overlap = min(overlap_left, overlap_right, overlap_top, overlap_bottom)
+                min_overlap = min(
+                    overlap_left, overlap_right, overlap_top, overlap_bottom
+                )
                 if min_overlap == overlap_left:
                     x = rx - radius
                 elif min_overlap == overlap_right:
@@ -319,7 +473,7 @@ def resolve_obstacle_collision(x, y, radius):
                 else:
                     y = ry + rh + radius
             else:
-                push = (radius - dist)
+                push = radius - dist
                 x += (dx / dist) * push
                 y += (dy / dist) * push
     return x, y
@@ -327,6 +481,7 @@ def resolve_obstacle_collision(x, y, radius):
 
 class CollectibleItem:
     """Collectibles drawn in design 4: Yellow Star, Golden Coin, Blue Crystal"""
+
     def __init__(self, item_id, item_type, x, y):
         """Docstring for __init__."""
         self.id = item_id
@@ -342,12 +497,13 @@ class CollectibleItem:
             "id": self.id,
             "type": self.type,
             "x": round(self.x, 1),
-            "y": round(self.y, 1)
+            "y": round(self.y, 1),
         }
 
 
 class ZombieCat:
     """Child-sized Zombie Cat that roams the station"""
+
     def __init__(self, cat_id, x, y):
         """Docstring for __init__."""
         self.id = cat_id
@@ -391,12 +547,13 @@ class ZombieCat:
             "y": round(self.y, 1),
             "hp": self.hp,
             "max_hp": self.max_hp,
-            "alive": self.alive
+            "alive": self.alive,
         }
 
 
 class LightOrb:
     """Floating magic clone orb dropped when a zombie cat dies; shoots out with random impulse and slows down by friction"""
+
     def __init__(self, orb_id, x, y, vx=0.0, vy=0.0):
         """Docstring for __init__."""
         self.id = orb_id
@@ -442,12 +599,13 @@ class LightOrb:
             "radius": self.radius,
             "lifetime": round(self.lifetime, 1),
             "armed": self.armed,
-            "arm_timer": round(max(0, self.arm_timer), 2)
+            "arm_timer": round(max(0, self.arm_timer), 2),
         }
 
 
 class InvisibilityButton:
     """Secret magic button dropped by a ghost; grants 8s invisibility when picked up"""
+
     def __init__(self, button_id, x, y, spawned_by):
         """Docstring for __init__."""
         self.id = button_id
@@ -472,18 +630,19 @@ class InvisibilityButton:
             "y": round(self.y, 1),
             "radius": self.radius,
             "active": self.active,
-            "lifetime": round(self.lifetime, 1)
+            "lifetime": round(self.lifetime, 1),
         }
 
 
 class CloneImpostor:
     """Evil impostor clone generated when a player touches the light orb"""
+
     def __init__(self, clone_id, creator_player):
         """Docstring for __init__."""
         self.id = clone_id
         self.name = f"{creator_player.name} (CLON)"
-        self.gender = getattr(creator_player, 'gender', 'boy')
-        self.character = getattr(creator_player, 'character', 'matias')
+        self.gender = getattr(creator_player, "gender", "boy")
+        self.character = getattr(creator_player, "character", "matias")
         self.color = creator_player.color
         self.hat = creator_player.hat
         self.skin = creator_player.skin
@@ -513,8 +672,8 @@ class CloneImpostor:
         closest_dist = 650
 
         for p in target_players:
-            if p.alive and not getattr(p, 'is_clone', False) and p.id != self.id:
-                is_stealth = getattr(p, 'in_stealth', False)
+            if p.alive and not getattr(p, "is_clone", False) and p.id != self.id:
+                is_stealth = getattr(p, "in_stealth", False)
                 max_detect = 160.0 if is_stealth else 650.0
                 dist = math.hypot(self.x - p.x, self.y - p.y)
                 if dist < max_detect and dist < closest_dist:
@@ -563,21 +722,24 @@ class CloneImpostor:
             "max_hp": self.max_hp,
             "role": "impostor",
             "alive": self.alive,
-            "is_clone": True
+            "is_clone": True,
         }
 
 
 class Player:
     """Docstring for Player."""
+
     def __init__(self, player_id, name, color_idx, gender="boy", character="matias"):
         """Docstring for __init__."""
         self.id = player_id
-        
+
         # Match character with CHARACTERS_CATALOG
-        char_info = next((c for c in CHARACTERS_CATALOG if c["id"] == str(character).lower()), None)
+        char_info = next(
+            (c for c in CHARACTERS_CATALOG if c["id"] == str(character).lower()), None
+        )
         if not char_info:
             char_info = CHARACTERS_CATALOG[color_idx % len(CHARACTERS_CATALOG)]
-        
+
         self.character = char_info["id"]
         self.character_num = char_info["num"]
         self.name = name or char_info["name"]
@@ -607,7 +769,9 @@ class Player:
         self.current_task = None
         self.task_progress = 0.0
         self.completed_tasks = set()
-        self.scored_tasks = set()  # tasks already awarded points for (prevents double-scoring/cheating)
+        self.scored_tasks = (
+            set()
+        )  # tasks already awarded points for (prevents double-scoring/cheating)
         self.assigned_tasks = []
         self.in_vent = None
         self.kills = 0
@@ -622,13 +786,19 @@ class Player:
 
     def assign_tasks(self, task_pool):
         """Docstring for assign_tasks."""
-        self.assigned_tasks = random.sample([t["id"] for t in task_pool], min(4, len(task_pool)))
+        self.assigned_tasks = random.sample(
+            [t["id"] for t in task_pool], min(4, len(task_pool))
+        )
         self.completed_tasks = set()
         self.scored_tasks = set()
 
     def to_dict(self, viewer_role=None, is_self=False):
         """Docstring for to_dict."""
-        visible_role = self.role if (is_self or viewer_role == "impostor" or viewer_role == "ghost") else "crewmate"
+        visible_role = (
+            self.role
+            if (is_self or viewer_role == "impostor" or viewer_role == "ghost")
+            else "crewmate"
+        )
         is_disguised = bool(self.disguise and self.disguise_timer > 0)
         show_disguise = is_disguised and not is_self and viewer_role != "impostor"
 
@@ -657,10 +827,20 @@ class Player:
             "max_hp": self.max_hp,
             "stamina": self.stamina,
             "score": self.score,
-            "role": visible_role if not self.alive else (visible_role if is_self or viewer_role == "impostor" else "unknown"),
+            "role": (
+                visible_role
+                if not self.alive
+                else (
+                    visible_role if is_self or viewer_role == "impostor" else "unknown"
+                )
+            ),
             "alive": self.alive,
             "ready": self.ready,
-            "kill_cd": round(max(0, self.kill_cooldown), 1) if (is_self and self.role == "impostor") else 0,
+            "kill_cd": (
+                round(max(0, self.kill_cooldown), 1)
+                if (is_self and self.role == "impostor")
+                else 0
+            ),
             "in_vent": bool(self.in_vent),
             "vent_id": self.in_vent,
             "is_invisible": self.invis_timer > 0,
@@ -674,12 +854,13 @@ class Player:
             "kills": self.kills,
             "ping": self.ping,
             "in_stealth": getattr(self, "in_stealth", False),
-            "is_clone": False
+            "is_clone": False,
         }
 
 
 class GameRoom:
     """Docstring for GameRoom."""
+
     def __init__(self, room_id):
         """Docstring for __init__."""
         self.id = room_id
@@ -698,11 +879,13 @@ class GameRoom:
             "reason": None,
             "votes": {},
             "timer": 0.0,
-            "result": None
+            "result": None,
         }
         self.created_at = time.time()
         self.last_tick = time.time()
-        self.empty_since = None  # timestamp when the room last became empty (None = has players)
+        self.empty_since = (
+            None  # timestamp when the room last became empty (None = has players)
+        )
         self.episode = 1
         self.max_episodes = 9
         self.init_world_entities()
@@ -711,18 +894,18 @@ class GameRoom:
         """Docstring for init_world_entities."""
         self.invis_buttons = []
         self.zombie_cats = [
-            ZombieCat("cat_1", 350, 350),      # Reactor Norte
-            ZombieCat("cat_2", 420, 1250),     # Electricidad
-            ZombieCat("cat_3", 2250, 950),     # Navegación Superior
-            ZombieCat("cat_4", 1400, 1650),    # Sala de Música
-            ZombieCat("cat_5", 2150, 480),     # Habitación Oeste
-            ZombieCat("cat_6", 2480, 320),     # Habitación Este
-            ZombieCat("cat_7", 1020, 720),     # Cafetería Oeste
-            ZombieCat("cat_8", 1680, 720),     # Cafetería Este
-            ZombieCat("cat_9", 680, 500),      # Pasillo Reactor-Cafetería
-            ZombieCat("cat_10", 1950, 720),    # Pasillo Cafetería-Navegación
-            ZombieCat("cat_11", 520, 920),     # Pasillo Electricidad Superior
-            ZombieCat("cat_12", 2350, 1250)    # Navegación Sur
+            ZombieCat("cat_1", 350, 350),  # Reactor Norte
+            ZombieCat("cat_2", 420, 1250),  # Electricidad
+            ZombieCat("cat_3", 2250, 950),  # Navegación Superior
+            ZombieCat("cat_4", 1400, 1650),  # Sala de Música
+            ZombieCat("cat_5", 2150, 480),  # Habitación Oeste
+            ZombieCat("cat_6", 2480, 320),  # Habitación Este
+            ZombieCat("cat_7", 1020, 720),  # Cafetería Oeste
+            ZombieCat("cat_8", 1680, 720),  # Cafetería Este
+            ZombieCat("cat_9", 680, 500),  # Pasillo Reactor-Cafetería
+            ZombieCat("cat_10", 1950, 720),  # Pasillo Cafetería-Navegación
+            ZombieCat("cat_11", 520, 920),  # Pasillo Electricidad Superior
+            ZombieCat("cat_12", 2350, 1250),  # Navegación Sur
         ]
         self.collectibles = [
             CollectibleItem("star_1", "star", 1350, 450),
@@ -730,14 +913,14 @@ class GameRoom:
             CollectibleItem("coin_1", "coin", 1550, 750),
             CollectibleItem("coin_2", "coin", 2400, 250),
             CollectibleItem("crystal_1", "crystal", 1200, 1500),
-            CollectibleItem("crystal_2", "crystal", 450, 1300)
+            CollectibleItem("crystal_2", "crystal", 450, 1300),
         ]
 
     def add_player(self, player_id, name="", gender="boy", character="matias"):
         """Docstring for add_player."""
         color_idx = len(self.players)
         player = Player(player_id, name, color_idx, gender=gender, character=character)
-        
+
         # Spawn in open cafeteria ring around the central meeting table
         spawn_idx = len(self.players)
         angle = (spawn_idx * (2.0 * math.pi / 10.0)) + random.uniform(-0.08, 0.08)
@@ -846,13 +1029,17 @@ class GameRoom:
             for cat in self.zombie_cats:
                 cat.tick(dt)
 
-            all_alive_humans = [p for p in self.players.values() if p.alive and p.invis_timer <= 0]
+            all_alive_humans = [
+                p for p in self.players.values() if p.alive and p.invis_timer <= 0
+            ]
             for p in self.players.values():
                 if p.alive and not p.in_vent:
                     new_x = p.x + p.vx * dt
                     new_y = p.y + p.vy * dt
                     p.x, p.y = resolve_obstacle_collision(new_x, new_y, PLAYER_RADIUS)
-                    p.in_stealth = is_in_stealth_zone(p.x, p.y) and (math.hypot(p.vx, p.vy) < 25)
+                    p.in_stealth = is_in_stealth_zone(p.x, p.y) and (
+                        math.hypot(p.vx, p.vy) < 25
+                    )
                 else:
                     p.in_stealth = False
 
@@ -909,7 +1096,9 @@ class GameRoom:
                 # Progress tasks
                 if p.current_task and p.alive and p.role == "crewmate":
                     p.task_progress += dt
-                    station = next((t for t in TASK_STATIONS if t["id"] == p.current_task), None)
+                    station = next(
+                        (t for t in TASK_STATIONS if t["id"] == p.current_task), None
+                    )
                     if station and p.task_progress >= station["duration"]:
                         p.completed_tasks.add(p.current_task)
                         p.current_task = None
@@ -923,17 +1112,19 @@ class GameRoom:
             for p in self.players.values():
                 if p.alive and p.hp <= 0:
                     p.alive = False
-                    self.dead_bodies.append({
-                        "id": f"body_{uuid.uuid4().hex[:6]}",
-                        "victim_id": p.id,
-                        "victim_name": p.name,
-                        "color": p.color,
-                        "hat": p.hat,
-                        "skin": p.skin,
-                        "x": round(p.x, 1),
-                        "y": round(p.y, 1),
-                        "time": time.time()
-                    })
+                    self.dead_bodies.append(
+                        {
+                            "id": f"body_{uuid.uuid4().hex[:6]}",
+                            "victim_id": p.id,
+                            "victim_name": p.name,
+                            "color": p.color,
+                            "hat": p.hat,
+                            "skin": p.skin,
+                            "x": round(p.x, 1),
+                            "y": round(p.y, 1),
+                            "time": time.time(),
+                        }
+                    )
 
             self.check_game_over()
 
@@ -960,7 +1151,10 @@ class GameRoom:
         if attacker.punch_cooldown > 0:
             return False, "Recargando golpe...", None
 
-        weapon_info = next((w for w in WEAPONS_CATALOG if w["id"] == attacker.weapon), WEAPONS_CATALOG[0])
+        weapon_info = next(
+            (w for w in WEAPONS_CATALOG if w["id"] == attacker.weapon),
+            WEAPONS_CATALOG[0],
+        )
         damage = weapon_info["dmg"]
         attacker.punch_cooldown = 0.55
         hit_info = {"type": "miss", "weapon": attacker.weapon}
@@ -981,7 +1175,14 @@ class GameRoom:
                         vx = math.cos(angle) * speed
                         vy = math.sin(angle) * speed
                         self.light_orbs.append(LightOrb(orb_id, cat.x, cat.y, vx, vy))
-                    hit_info = {"type": "cat_hit", "cat_id": cat.id, "cat_dead": not cat.alive, "x": cat.x, "y": cat.y, "weapon": attacker.weapon}
+                    hit_info = {
+                        "type": "cat_hit",
+                        "cat_id": cat.id,
+                        "cat_dead": not cat.alive,
+                        "x": cat.x,
+                        "y": cat.y,
+                        "weapon": attacker.weapon,
+                    }
                     return True, "¡Vence al zombi!", hit_info
 
         # 2. Check hitting Evil Clone Impostors
@@ -993,7 +1194,14 @@ class GameRoom:
                     if clone.hp <= 0:
                         clone.alive = False
                         attacker.score += 350
-                    hit_info = {"type": "clone_hit", "clone_id": clone.id, "clone_dead": not clone.alive, "x": clone.x, "y": clone.y, "weapon": attacker.weapon}
+                    hit_info = {
+                        "type": "clone_hit",
+                        "clone_id": clone.id,
+                        "clone_dead": not clone.alive,
+                        "x": clone.x,
+                        "y": clone.y,
+                        "weapon": attacker.weapon,
+                    }
                     return True, "¡Golpeaste al Clon Impostor!", hit_info
 
         # 3. Check hitting other players in brawls
@@ -1004,19 +1212,28 @@ class GameRoom:
                     other.hp = max(0, other.hp - damage)
                     if other.hp <= 0:
                         other.alive = False
-                        self.dead_bodies.append({
-                            "id": f"body_{uuid.uuid4().hex[:6]}",
-                            "victim_id": other.id,
-                            "victim_name": other.name,
-                            "color": other.color,
-                            "hat": other.hat,
-                            "skin": other.skin,
-                            "x": round(other.x, 1),
-                            "y": round(other.y, 1),
-                            "time": time.time()
-                        })
+                        self.dead_bodies.append(
+                            {
+                                "id": f"body_{uuid.uuid4().hex[:6]}",
+                                "victim_id": other.id,
+                                "victim_name": other.name,
+                                "color": other.color,
+                                "hat": other.hat,
+                                "skin": other.skin,
+                                "x": round(other.x, 1),
+                                "y": round(other.y, 1),
+                                "time": time.time(),
+                            }
+                        )
                         self.check_game_over()
-                    hit_info = {"type": "player_hit", "target_id": other.id, "target_hp": other.hp, "x": other.x, "y": other.y, "weapon": attacker.weapon}
+                    hit_info = {
+                        "type": "player_hit",
+                        "target_id": other.id,
+                        "target_hp": other.hp,
+                        "x": other.x,
+                        "y": other.y,
+                        "weapon": attacker.weapon,
+                    }
                     return True, f"¡Golpeaste a {other.name}!", hit_info
 
         return True, "Golpe al aire", hit_info
@@ -1034,7 +1251,10 @@ class GameRoom:
         if impostor.role != "impostor" or not impostor.alive:
             return False, "Solo el impostor vivo puede eliminar"
         if impostor.kill_cooldown > 0:
-            return False, f"Recarga de ataque activa ({round(impostor.kill_cooldown, 1)}s)"
+            return (
+                False,
+                f"Recarga de ataque activa ({round(impostor.kill_cooldown, 1)}s)",
+            )
         if not target.alive or target.role == "impostor":
             return False, "Objetivo inválido"
 
@@ -1046,17 +1266,19 @@ class GameRoom:
         target.hp = 0
         impostor.kill_cooldown = KILL_COOLDOWN
         impostor.kills += 1
-        self.dead_bodies.append({
-            "id": f"body_{uuid.uuid4().hex[:6]}",
-            "victim_id": target.id,
-            "victim_name": target.name,
-            "color": target.color,
-            "hat": target.hat,
-            "skin": target.skin,
-            "x": round(target.x, 1),
-            "y": round(target.y, 1),
-            "time": time.time()
-        })
+        self.dead_bodies.append(
+            {
+                "id": f"body_{uuid.uuid4().hex[:6]}",
+                "victim_id": target.id,
+                "victim_name": target.name,
+                "color": target.color,
+                "hat": target.hat,
+                "skin": target.skin,
+                "x": round(target.x, 1),
+                "y": round(target.y, 1),
+                "time": time.time(),
+            }
+        )
 
         self.check_game_over()
         return True, "Objetivo eliminado"
@@ -1086,12 +1308,17 @@ class GameRoom:
                 impostor.y = vent["y"]
                 return True, "Entraste a la ventilación"
             elif impostor.in_vent:
-                target_vent = next((v for v in VENTS if v["id"] == vent["connected_to"]), None)
+                target_vent = next(
+                    (v for v in VENTS if v["id"] == vent["connected_to"]), None
+                )
                 if target_vent:
                     impostor.in_vent = target_vent["id"]
                     impostor.x = target_vent["x"]
                     impostor.y = target_vent["y"]
-                    return True, f"Te desplazaste por la alcantarilla a {target_vent['room']}"
+                    return (
+                        True,
+                        f"Te desplazaste por la alcantarilla a {target_vent['room']}",
+                    )
         return False, "Demasiado lejos"
 
     def try_shapeshift(self, impostor_id, target_id):
@@ -1114,7 +1341,7 @@ class GameRoom:
             "gender": target.gender,
             "color": target.color,
             "hat": target.hat,
-            "skin": target.skin
+            "skin": target.skin,
         }
         impostor.disguise_timer = 18.0
         return True, f"¡Camuflado como {target.name}!"
@@ -1131,7 +1358,9 @@ class GameRoom:
 
         ghost.ghost_button_cooldown = 12.0
         btn_id = f"invis_{uuid.uuid4().hex[:6]}"
-        self.invis_buttons.append(InvisibilityButton(btn_id, ghost.x, ghost.y, ghost.id))
+        self.invis_buttons.append(
+            InvisibilityButton(btn_id, ghost.x, ghost.y, ghost.id)
+        )
         return True, "¡Has entregado un botón de invisibilidad!"
 
     def report_body_or_button(self, reporter_id, is_body=False, body_id=None):
@@ -1149,7 +1378,7 @@ class GameRoom:
             "reason": reason,
             "votes": {},
             "timer": 30.0,
-            "result": None
+            "result": None,
         }
         return True
 
@@ -1231,8 +1460,14 @@ class GameRoom:
             return True
 
         # 2. Crewmate Victory by Tasks: All assigned tasks completed
-        total_tasks = sum(len(p.assigned_tasks) for p in self.players.values() if p.role == "crewmate")
-        completed_tasks = sum(len(p.completed_tasks) for p in self.players.values() if p.role == "crewmate")
+        total_tasks = sum(
+            len(p.assigned_tasks) for p in self.players.values() if p.role == "crewmate"
+        )
+        completed_tasks = sum(
+            len(p.completed_tasks)
+            for p in self.players.values()
+            if p.role == "crewmate"
+        )
         if total_tasks > 0 and completed_tasks >= total_tasks:
             self.state = "GAME_OVER"
             self.winner = "CREWMATE_TASKS"
@@ -1253,18 +1488,44 @@ class GameRoom:
         viewer_role = player.role if player else "ghost"
         is_alive = player.alive if player else False
 
-        total_tasks = max(1, sum(len(p.assigned_tasks) for p in self.players.values() if p.role == "crewmate"))
-        completed_tasks = sum(len(p.completed_tasks) for p in self.players.values() if p.role == "crewmate")
+        total_tasks = max(
+            1,
+            sum(
+                len(p.assigned_tasks)
+                for p in self.players.values()
+                if p.role == "crewmate"
+            ),
+        )
+        completed_tasks = sum(
+            len(p.completed_tasks)
+            for p in self.players.values()
+            if p.role == "crewmate"
+        )
         task_percentage = round((completed_tasks / total_tasks) * 100, 1)
 
         players_data = []
         for p in self.players.values():
-            if p.in_vent and p.id != player_id and viewer_role != "impostor" and is_alive:
+            if (
+                p.in_vent
+                and p.id != player_id
+                and viewer_role != "impostor"
+                and is_alive
+            ):
                 continue
             # Invisible player is hidden from other alive players
-            if p.invis_timer > 0 and p.id != player_id and is_alive and viewer_role != "ghost":
+            if (
+                p.invis_timer > 0
+                and p.id != player_id
+                and is_alive
+                and viewer_role != "ghost"
+            ):
                 continue
-            players_data.append(p.to_dict(viewer_role="ghost" if not is_alive else viewer_role, is_self=(p.id == player_id)))
+            players_data.append(
+                p.to_dict(
+                    viewer_role="ghost" if not is_alive else viewer_role,
+                    is_self=(p.id == player_id),
+                )
+            )
 
         return {
             "type": "sync",
@@ -1278,8 +1539,12 @@ class GameRoom:
             "orbs": [o.to_dict() for o in self.light_orbs],
             "invis_buttons": [b.to_dict() for b in self.invis_buttons if b.active],
             "clones": [cl.to_dict() for cl in self.clone_impostors],
-            "collectibles": [col.to_dict() for col in self.collectibles if not col.collected],
+            "collectibles": [
+                col.to_dict() for col in self.collectibles if not col.collected
+            ],
             "bodies": self.dead_bodies,
-            "meeting": self.meeting if self.state in ("MEETING", "MEETING_RESULT") else None,
-            "timestamp": time.time()
+            "meeting": (
+                self.meeting if self.state in ("MEETING", "MEETING_RESULT") else None
+            ),
+            "timestamp": time.time(),
         }

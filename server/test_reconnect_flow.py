@@ -25,13 +25,13 @@ class TestReconnectFlow(unittest.TestCase):
         p1.role = "crewmate"
         p1.assigned_tasks = ["task_1", "task_2"]
         p1.connected = False
-        
+
         # When reconnecting with p1_id, player state and tasks must be preserved
         reconnect_id = "p1_id"
         self.assertIn(reconnect_id, self.room.players)
         existing_p = self.room.players[reconnect_id]
         existing_p.connected = True
-        
+
         self.assertEqual(existing_p.id, "p1_id")
         self.assertEqual(existing_p.role, "crewmate")
         self.assertEqual(existing_p.assigned_tasks, ["task_1", "task_2"])
@@ -40,9 +40,11 @@ class TestReconnectFlow(unittest.TestCase):
         # Simulate room with no players and old empty_since
         self.room.empty_since = time.time() - 350
         self.assertEqual(len(self.room.players), 0)
-        
+
         # Check if room qualifies for TTL cleanup (TTL is 300s)
-        is_expired = (time.time() - self.room.empty_since) > server.ROOM_EMPTY_TTL_SECONDS
+        is_expired = (
+            time.time() - self.room.empty_since
+        ) > server.ROOM_EMPTY_TTL_SECONDS
         self.assertTrue(is_expired)
 
     def test_rate_limit_threshold(self):

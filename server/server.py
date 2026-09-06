@@ -1,4 +1,5 @@
 """Module containing backend logic."""
+
 import asyncio
 import os
 import json
@@ -11,9 +12,19 @@ import base64
 import mimetypes
 from pathlib import Path
 from game_state import (
-    GameRoom, MAP_OBSTACLES, TASK_STATIONS, EMERGENCY_BUTTON, VENTS,
-    MAP_WIDTH, MAP_HEIGHT, HATS_CATALOG, SKINS_CATALOG, WEAPONS_CATALOG,
-    FOOD_BUFFET, WARDROBE_STATION, CHARACTERS_CATALOG
+    GameRoom,
+    MAP_OBSTACLES,
+    TASK_STATIONS,
+    EMERGENCY_BUTTON,
+    VENTS,
+    MAP_WIDTH,
+    MAP_HEIGHT,
+    HATS_CATALOG,
+    SKINS_CATALOG,
+    WEAPONS_CATALOG,
+    FOOD_BUFFET,
+    WARDROBE_STATION,
+    CHARACTERS_CATALOG,
 )
 
 PORT = int(os.environ.get("PORT", 3000))
@@ -32,29 +43,39 @@ MAX_WS_FRAME_BYTES = 65536  # 64KB — plenty for any legit JSON message this ga
 ROOMS = {}
 CONNECTIONS = {}
 
+
 def get_lan_ip():
     """Docstring for get_lan_ip."""
     try:
         import subprocess
-        out = subprocess.check_output(['ip', 'route', 'get', '1.1.1.1'], stderr=subprocess.DEVNULL).decode().strip()
+
+        out = (
+            subprocess.check_output(
+                ["ip", "route", "get", "1.1.1.1"], stderr=subprocess.DEVNULL
+            )
+            .decode()
+            .strip()
+        )
         parts = out.split()
-        if 'src' in parts:
-            return parts[parts.index('src') + 1]
+        if "src" in parts:
+            return parts[parts.index("src") + 1]
     except Exception:
         pass
     try:
         import socket
+
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('8.8.8.8', 80))
+        s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
         s.close()
         return ip
     except Exception:
         return "192.168.1.4"
 
+
 def make_ws_frame(message_str):
     """Docstring for make_ws_frame."""
-    payload = message_str.encode('utf-8')
+    payload = message_str.encode("utf-8")
     length = len(payload)
     header = bytearray([0x81])
     if length < 126:
@@ -66,6 +87,7 @@ def make_ws_frame(message_str):
         header.append(127)
         header.extend(struct.pack("!Q", length))
     return bytes(header + payload)
+
 
 async def read_ws_frame(reader):
     """Docstring for read_ws_frame."""
@@ -98,6 +120,7 @@ async def read_ws_frame(reader):
 
     return opcode, payload
 
+
 async def send_json(writer, data_dict):
     """Docstring for send_json."""
     try:
@@ -107,6 +130,7 @@ async def send_json(writer, data_dict):
     except Exception:
         pass
 
+
 async def broadcast_to_room(room_id, data_dict, exclude_writer=None):
     """Docstring for broadcast_to_room."""
     room = ROOMS.get(room_id)
@@ -115,6 +139,7 @@ async def broadcast_to_room(room_id, data_dict, exclude_writer=None):
     for w, info in list(CONNECTIONS.items()):
         if info.get("room_id") == room_id and w != exclude_writer:
             await send_json(w, data_dict)
+
 
 async def handle_ws_message(writer, msg_str):
     """Docstring for handle_ws_message."""
@@ -130,7 +155,9 @@ async def handle_ws_message(writer, msg_str):
     room = ROOMS.get(room_id) if room_id else None
 
     if msg_type == "ping":
-        await send_json(writer, {"type": "pong", "client_time": data.get("client_time", 0)})
+        await send_json(
+            writer, {"type": "pong", "client_time": data.get("client_time", 0)}
+        )
 
     elif msg_type == "join_room":
         target_room_id = str(data.get("room_id", "")).strip().upper()
@@ -147,7 +174,10 @@ async def handle_ws_message(writer, msg_str):
         if player_character not in valid_char_ids:
             player_character = "matias"
 
-        char_meta = next((c for c in CHARACTERS_CATALOG if c["id"] == player_character), CHARACTERS_CATALOG[0])
+        char_meta = next(
+            (c for c in CHARACTERS_CATALOG if c["id"] == player_character),
+            CHARACTERS_CATALOG[0],
+        )
         player_name = str(data.get("name", "")).strip()[:16] or char_meta["name"]
         player_gender = str(data.get("gender", char_meta["gender"])).strip().lower()
         if player_gender not in ("boy", "girl"):
@@ -166,6 +196,7 @@ async def handle_ws_message(writer, msg_str):
                 if old_info.get("player_id") == reconnect_id and old_w != writer:
                     try:
                         old_w.close()
+                        await old_w.wait_closed()
                     except Exception:
                         pass
                     CONNECTIONS.pop(old_w, None)
@@ -173,10 +204,12 @@ async def handle_ws_message(writer, msg_str):
             player.connected = True
             conn_info["player_id"] = reconnect_id
             player_id = reconnect_id
-        
+
         if not player:
             if len(room.players) >= 12:
-                await send_json(writer, {"type": "error", "message": "La sala está llena (máx 12)"})
+                await send_json(
+                    writer, {"type": "error", "message": "La sala está llena (máx 12)"}
+                )
                 return
 
             # Name collision handling: Disambiguate if name already exists
@@ -184,33 +217,38 @@ async def handle_ws_message(writer, msg_str):
             if player_name.lower() in existing_names:
                 player_name = f"{player_name} {len(room.players) + 1}"
 
-            player = room.add_player(player_id, player_name, gender=player_gender, character=player_character)
-            
+            player = room.add_player(
+                player_id, player_name, gender=player_gender, character=player_character
+            )
+
         conn_info["room_id"] = target_room_id
 
-        await send_json(writer, {
-            "type": "joined_room",
-            "room_id": target_room_id,
-            "player_id": player_id,
-            "room_state": room.state,
-            "player": player.to_dict(is_self=True),
-            "catalogs": {
-                "characters": CHARACTERS_CATALOG,
-                "hats": HATS_CATALOG,
-                "skins": SKINS_CATALOG,
-                "weapons": WEAPONS_CATALOG
+        await send_json(
+            writer,
+            {
+                "type": "joined_room",
+                "room_id": target_room_id,
+                "player_id": player_id,
+                "room_state": room.state,
+                "player": player.to_dict(is_self=True),
+                "catalogs": {
+                    "characters": CHARACTERS_CATALOG,
+                    "hats": HATS_CATALOG,
+                    "skins": SKINS_CATALOG,
+                    "weapons": WEAPONS_CATALOG,
+                },
+                "map": {
+                    "width": MAP_WIDTH,
+                    "height": MAP_HEIGHT,
+                    "obstacles": MAP_OBSTACLES,
+                    "tasks": TASK_STATIONS,
+                    "vents": VENTS,
+                    "emergency_button": EMERGENCY_BUTTON,
+                    "food_buffet": FOOD_BUFFET,
+                    "wardrobe": WARDROBE_STATION,
+                },
             },
-            "map": {
-                "width": MAP_WIDTH,
-                "height": MAP_HEIGHT,
-                "obstacles": MAP_OBSTACLES,
-                "tasks": TASK_STATIONS,
-                "vents": VENTS,
-                "emergency_button": EMERGENCY_BUTTON,
-                "food_buffet": FOOD_BUFFET,
-                "wardrobe": WARDROBE_STATION
-            }
-        })
+        )
 
         # HOT-JOIN: If game is already in progress, drop player straight in as active crewmate!
         if room.state == "PLAYING" and not reconnect_id:
@@ -222,27 +260,36 @@ async def handle_ws_message(writer, msg_str):
             player.y = 700.0 + math.sin(spawn_angle) * 160.0
             player.target_x = player.x
             player.target_y = player.y
-            
-            await send_json(writer, {
-                "type": "game_started",
-                "role": "crewmate",
-                "assigned_tasks": player.assigned_tasks,
-                "players_count": len(room.players)
-            })
+
+            await send_json(
+                writer,
+                {
+                    "type": "game_started",
+                    "role": "crewmate",
+                    "assigned_tasks": player.assigned_tasks,
+                    "players_count": len(room.players),
+                },
+            )
         elif room.state in ("PLAYING", "MEETING", "MEETING_RESULT") and reconnect_id:
             # Reconnected player, just resend game_started with their existing state
-            await send_json(writer, {
-                "type": "game_started",
-                "role": player.role,
-                "assigned_tasks": player.assigned_tasks,
-                "players_count": len(room.players)
-            })
-            
-        await broadcast_to_room(target_room_id, {
-            "type": "player_joined",
-            "player": player.to_dict(),
-            "players_count": len(room.players)
-        })
+            await send_json(
+                writer,
+                {
+                    "type": "game_started",
+                    "role": player.role,
+                    "assigned_tasks": player.assigned_tasks,
+                    "players_count": len(room.players),
+                },
+            )
+
+        await broadcast_to_room(
+            target_room_id,
+            {
+                "type": "player_joined",
+                "player": player.to_dict(),
+                "players_count": len(room.players),
+            },
+        )
 
     elif msg_type == "update_wardrobe":
         if room:
@@ -253,24 +300,26 @@ async def handle_ws_message(writer, msg_str):
             room.update_customization(player_id, hat, skin, weapon, gender=gender)
             p = room.players.get(player_id)
             if p:
-                await broadcast_to_room(room_id, {
-                    "type": "wardrobe_changed",
-                    "player_id": player_id,
-                    "gender": p.gender,
-                    "hat": p.hat,
-                    "skin": p.skin,
-                    "weapon": p.weapon
-                })
+                await broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "wardrobe_changed",
+                        "player_id": player_id,
+                        "gender": p.gender,
+                        "hat": p.hat,
+                        "skin": p.skin,
+                        "weapon": p.weapon,
+                    },
+                )
 
     elif msg_type == "punch":
         if room:
             success, msg, hit_info = room.try_punch(player_id)
             if hit_info:
-                await broadcast_to_room(room_id, {
-                    "type": "punch_event",
-                    "attacker_id": player_id,
-                    "hit": hit_info
-                })
+                await broadcast_to_room(
+                    room_id,
+                    {"type": "punch_event", "attacker_id": player_id, "hit": hit_info},
+                )
 
     elif msg_type == "start_game":
         if room and room.state in ("LOBBY", "GAME_OVER"):
@@ -279,12 +328,19 @@ async def handle_ws_message(writer, msg_str):
                     if info.get("room_id") == room_id:
                         p_id = info.get("player_id")
                         p = room.players.get(p_id)
-                        await send_json(w, {
-                            "type": "game_started",
-                            "role": p.role if p else "crewmate",
-                            "assigned_tasks": p.assigned_tasks if p else [],
-                            "impostor_count": sum(1 for pl in room.players.values() if pl.role == "impostor")
-                        })
+                        await send_json(
+                            w,
+                            {
+                                "type": "game_started",
+                                "role": p.role if p else "crewmate",
+                                "assigned_tasks": p.assigned_tasks if p else [],
+                                "impostor_count": sum(
+                                    1
+                                    for pl in room.players.values()
+                                    if pl.role == "impostor"
+                                ),
+                            },
+                        )
 
     elif msg_type == "return_to_lobby":
         if room:
@@ -299,7 +355,7 @@ async def handle_ws_message(writer, msg_str):
                 "reason": None,
                 "votes": {},
                 "timer": 0.0,
-                "result": None
+                "result": None,
             }
             room.init_world_entities()
             for p in room.players.values():
@@ -310,11 +366,14 @@ async def handle_ws_message(writer, msg_str):
                 p.scored_tasks = set()
                 p.current_task = None
                 p.in_vent = None
-            await broadcast_to_room(room_id, {
-                "type": "returned_to_lobby",
-                "room_id": room_id,
-                "episode": room.episode
-            })
+            await broadcast_to_room(
+                room_id,
+                {
+                    "type": "returned_to_lobby",
+                    "room_id": room_id,
+                    "episode": room.episode,
+                },
+            )
 
     elif msg_type == "input":
         if room and room.state == "PLAYING":
@@ -326,56 +385,70 @@ async def handle_ws_message(writer, msg_str):
         if room:
             target_id = data.get("target_id")
             success, msg = room.try_kill(player_id, target_id)
-            await send_json(writer, {"type": "kill_result", "success": success, "message": msg})
+            await send_json(
+                writer, {"type": "kill_result", "success": success, "message": msg}
+            )
             if success:
-                await broadcast_to_room(room_id, {
-                    "type": "sound_event",
-                    "sound": "kill",
-                    "victim_id": target_id
-                })
+                await broadcast_to_room(
+                    room_id,
+                    {"type": "sound_event", "sound": "kill", "victim_id": target_id},
+                )
 
     elif msg_type == "vent":
         if room:
             vent_id = data.get("vent_id")
             success, msg = room.try_vent(player_id, vent_id)
-            await send_json(writer, {"type": "vent_result", "success": success, "message": msg})
+            await send_json(
+                writer, {"type": "vent_result", "success": success, "message": msg}
+            )
 
     elif msg_type == "shapeshift":
         if room:
             target_id = data.get("target_id")
             success, msg = room.try_shapeshift(player_id, target_id)
-            await send_json(writer, {"type": "shapeshift_result", "success": success, "message": msg})
+            await send_json(
+                writer,
+                {"type": "shapeshift_result", "success": success, "message": msg},
+            )
             if success:
-                await broadcast_to_room(room_id, {
-                    "type": "sound_event",
-                    "sound": "shapeshift",
-                    "impostor_id": player_id
-                })
+                await broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "sound_event",
+                        "sound": "shapeshift",
+                        "impostor_id": player_id,
+                    },
+                )
 
     elif msg_type == "ghost_drop_invis":
         if room:
             success, msg = room.try_ghost_drop_invis_button(player_id)
-            await send_json(writer, {"type": "ghost_drop_result", "success": success, "message": msg})
+            await send_json(
+                writer,
+                {"type": "ghost_drop_result", "success": success, "message": msg},
+            )
 
     elif msg_type == "report":
         if room:
             is_body = bool(data.get("is_body", False))
             body_id = data.get("body_id")
             if room.report_body_or_button(player_id, is_body, body_id):
-                await broadcast_to_room(room_id, {
-                    "type": "meeting_started",
-                    "meeting": room.meeting
-                })
+                await broadcast_to_room(
+                    room_id, {"type": "meeting_started", "meeting": room.meeting}
+                )
 
     elif msg_type == "vote":
         if room and room.state == "MEETING":
             target_id = data.get("target_id", "skip")
             room.cast_vote(player_id, target_id)
-            await broadcast_to_room(room_id, {
-                "type": "vote_cast",
-                "voter_id": player_id,
-                "has_voted": list(room.meeting["votes"].keys())
-            })
+            await broadcast_to_room(
+                room_id,
+                {
+                    "type": "vote_cast",
+                    "voter_id": player_id,
+                    "has_voted": list(room.meeting["votes"].keys()),
+                },
+            )
 
     elif msg_type == "start_task":
         if room and room.state == "PLAYING":
@@ -385,7 +458,9 @@ async def handle_ws_message(writer, msg_str):
             # player and isn't already done — a client could otherwise "start" an
             # arbitrary task_id it was never given.
             if (
-                player and player.alive and player.role == "crewmate"
+                player
+                and player.alive
+                and player.role == "crewmate"
                 and task_id in player.assigned_tasks
                 and task_id not in player.completed_tasks
             ):
@@ -406,7 +481,9 @@ async def handle_ws_message(writer, msg_str):
             # Without this check a modified client could call complete_task in a
             # loop with a fake task_id and win instantly.
             if (
-                player and player.role == "crewmate" and task_id
+                player
+                and player.role == "crewmate"
+                and task_id
                 and task_id in player.assigned_tasks
                 and task_id in player.completed_tasks
                 and task_id not in player.scored_tasks
@@ -414,13 +491,16 @@ async def handle_ws_message(writer, msg_str):
                 player.scored_tasks.add(task_id)
                 player.score += 150
                 room.check_game_over()
-                await broadcast_to_room(room_id, {
-                    "type": "task_completed",
-                    "player_id": player_id,
-                    "task_id": task_id,
-                    "completed_count": len(player.completed_tasks),
-                    "total_tasks": len(player.assigned_tasks)
-                })
+                await broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "task_completed",
+                        "player_id": player_id,
+                        "task_id": task_id,
+                        "completed_count": len(player.completed_tasks),
+                        "total_tasks": len(player.assigned_tasks),
+                    },
+                )
 
     elif msg_type == "cancel_task":
         if room and room.state == "PLAYING":
@@ -434,15 +514,18 @@ async def handle_ws_message(writer, msg_str):
             text = str(data.get("text", "")).strip()[:100]
             player = room.players.get(player_id)
             if text and player:
-                await broadcast_to_room(room_id, {
-                    "type": "chat_message",
-                    "player_id": player.id,
-                    "name": player.name,
-                    "color": player.color,
-                    "alive": player.alive,
-                    "text": text,
-                    "time": time.time()
-                })
+                await broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "chat_message",
+                        "player_id": player.id,
+                        "name": player.name,
+                        "color": player.color,
+                        "alive": player.alive,
+                        "text": text,
+                        "time": time.time(),
+                    },
+                )
 
 
 async def handle_connection(reader, writer):
@@ -472,9 +555,9 @@ async def handle_connection(reader, writer):
             "https://matias-brus-impostor-chase-production.up.railway.app",
             "http://localhost",
             "http://127.0.0.1",
-            f"http://{get_lan_ip()}"
+            f"http://{get_lan_ip()}",
         ]
-        
+
         is_allowed_origin = False
         if not req_origin:
             is_allowed_origin = True
@@ -483,7 +566,7 @@ async def handle_connection(reader, writer):
                 if req_origin.startswith(ao):
                     is_allowed_origin = True
                     break
-                    
+
         cors_header = f"Access-Control-Allow-Origin: {req_origin if is_allowed_origin else 'null'}\r\n"
 
         if headers.get("upgrade", "").lower() == "websocket":
@@ -496,7 +579,9 @@ async def handle_connection(reader, writer):
                 return
 
             magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-            accept_key = base64.b64encode(hashlib.sha1((sec_key + magic).encode()).digest()).decode()
+            accept_key = base64.b64encode(
+                hashlib.sha1((sec_key + magic).encode()).digest()
+            ).decode()
 
             response = (
                 "HTTP/1.1 101 Switching Protocols\r\n"
@@ -529,14 +614,18 @@ async def handle_connection(reader, writer):
                 # (network.js), so 25s of total silence is a safe, generous
                 # threshold to declare the connection dead.
                 try:
-                    opcode, payload = await asyncio.wait_for(read_ws_frame(reader), timeout=25.0)
+                    opcode, payload = await asyncio.wait_for(
+                        read_ws_frame(reader), timeout=25.0
+                    )
                 except asyncio.TimeoutError:
                     break
 
                 if opcode == OP_CLOSE:
                     break
                 elif opcode == OP_TEXT:
-                    await handle_ws_message(writer, payload.decode("utf-8", errors="ignore"))
+                    await handle_ws_message(
+                        writer, payload.decode("utf-8", errors="ignore")
+                    )
                 elif opcode == OP_PING:
                     writer.write(bytes([0x8A, 0x00]))
                     await writer.drain()
@@ -554,13 +643,15 @@ async def handle_connection(reader, writer):
                 lan_ip = get_lan_ip()
                 active_rooms = [r_id for r_id, r in ROOMS.items() if len(r.players) > 0]
                 primary_room = active_rooms[0] if active_rooms else "CHASE-MAIN"
-                body = json.dumps({
-                    "lan_ip": lan_ip,
-                    "port": PORT,
-                    "room_id": primary_room,
-                    "lan_url": f"http://{lan_ip}:{PORT}",
-                    "play_url": f"http://{lan_ip}:{PORT}/?play=1"
-                }).encode("utf-8")
+                body = json.dumps(
+                    {
+                        "lan_ip": lan_ip,
+                        "port": PORT,
+                        "room_id": primary_room,
+                        "lan_url": f"http://{lan_ip}:{PORT}",
+                        "play_url": f"http://{lan_ip}:{PORT}/?play=1",
+                    }
+                ).encode("utf-8")
                 res = (
                     f"HTTP/1.1 200 OK\r\n"
                     f"Content-Type: application/json; charset=utf-8\r\n"
@@ -577,13 +668,17 @@ async def handle_connection(reader, writer):
                 rooms_list = []
                 for r_id, r in ROOMS.items():
                     if len(r.players) > 0:
-                        rooms_list.append({
-                            "room_id": r_id,
-                            "players": len(r.players),
-                            "max_players": 12,
-                            "state": r.state,
-                            "player_names": [p.name for p in list(r.players.values())[:6]]
-                        })
+                        rooms_list.append(
+                            {
+                                "room_id": r_id,
+                                "players": len(r.players),
+                                "max_players": 12,
+                                "state": r.state,
+                                "player_names": [
+                                    p.name for p in list(r.players.values())[:6]
+                                ],
+                            }
+                        )
                 body = json.dumps({"rooms": rooms_list}).encode("utf-8")
                 res = (
                     f"HTTP/1.1 200 OK\r\n"
@@ -602,7 +697,10 @@ async def handle_connection(reader, writer):
 
             file_path = (CLIENT_DIR / clean_path.lstrip("/")).resolve()
 
-            if CLIENT_DIR not in file_path.parents and file_path != CLIENT_DIR / "index.html":
+            if (
+                CLIENT_DIR not in file_path.parents
+                and file_path != CLIENT_DIR / "index.html"
+            ):
                 file_path = CLIENT_DIR / "index.html"
 
             if file_path.exists() and file_path.is_file():
@@ -634,18 +732,21 @@ async def handle_connection(reader, writer):
             player = room.players.get(player_id)
             if player:
                 player.connected = False
-                
+
                 async def delayed_remove(r, p_id):
                     await asyncio.sleep(25.0)
                     p = r.players.get(p_id)
                     if p and not getattr(p, "connected", True):
                         r.remove_player(p_id)
-                        await broadcast_to_room(r.id, {
-                            "type": "player_left",
-                            "player_id": p_id,
-                            "players_count": len(r.players)
-                        })
-                
+                        await broadcast_to_room(
+                            r.id,
+                            {
+                                "type": "player_left",
+                                "player_id": p_id,
+                                "players_count": len(r.players),
+                            },
+                        )
+
                 asyncio.create_task(delayed_remove(room, player_id))
         try:
             writer.close()
@@ -673,7 +774,10 @@ async def game_tick_loop():
         # (keeping a short grace window in case someone reconnects/rejoins).
         if start_time - last_cleanup > 30:
             for room_id, room in list(ROOMS.items()):
-                if room.empty_since and (start_time - room.empty_since) > ROOM_EMPTY_TTL_SECONDS:
+                if (
+                    room.empty_since
+                    and (start_time - room.empty_since) > ROOM_EMPTY_TTL_SECONDS
+                ):
                     del ROOMS[room_id]
             last_cleanup = start_time
 
@@ -702,19 +806,21 @@ async def main():
     ports_to_try = [int(env_port)] if env_port else [PORT, 3001, 3002, 8080, 8000]
     for try_port in ports_to_try:
         try:
-            server = await asyncio.start_server(handle_connection, HOST, try_port, reuse_address=True)
+            server = await asyncio.start_server(
+                handle_connection, HOST, try_port, reuse_address=True
+            )
             PORT = try_port
             break
         except OSError:
             continue
 
     if not server:
-        print(f"❌ Error: No se pudo enlazar ningún puerto libre.")
+        print("❌ Error: No se pudo enlazar ningún puerto libre.")
         return
 
     lan_ip = get_lan_ip()
     print("=" * 60)
-    print(f"🚀 MATIAS & BRUS: IMPOSTOR CHASE SERVER")
+    print("🚀 MATIAS & BRUS: IMPOSTOR CHASE SERVER")
     print(f"👉 En esta PC:     http://localhost:{PORT}")
     print(f"👉 Misma Red Wi-Fi: http://{lan_ip}:{PORT}")
     print("=" * 60)
@@ -723,6 +829,7 @@ async def main():
 
     async with server:
         await server.serve_forever()
+
 
 if __name__ == "__main__":
     try:
