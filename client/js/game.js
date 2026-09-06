@@ -1099,8 +1099,6 @@ class GameEngine {
         this.drawMicrowave(ctx, 1730, 380, 70, 55, time);
 
         // 4. MESAS DE COMENSALES DE CAFETERÍA at (1000, 880) y (1570, 880)
-        this.drawDiningTable(ctx, 1000, 880, 130, 65, time);
-        this.drawDiningTable(ctx, 1570, 880, 130, 65, time);
 
         // 5. LAVADORA AUTOMÁTICA CON TAMBOR GIRATORIO at (1930, 180, w: 60, h: 60)
         this.drawWashingMachine(ctx, 1930, 180, 60, 60, time);
@@ -3307,7 +3305,7 @@ class GameEngine {
 
             const charKey = (p.character || "matias").toLowerCase();
             const theme = CHARACTER_THEMES[charKey] || (p.color ? { suitColor: p.color.hex, suitShade: "#1d4ed8", light: "#ffffff", pocket: "rgba(0,0,0,0.2)" } : CHARACTER_THEMES.matias);
-            const isGirl = (p.gender === "girl" || charKey === "nina_blanca" || charKey === "reina_flor");
+            const isGirl = (p.gender === "girl");
             const isMatias = (charKey === "matias" || p.name.toLowerCase().includes("matias"));
             const suitColor = theme.suitColor;
             const suitShade = theme.suitShade;
@@ -4201,7 +4199,7 @@ class GameEngine {
             ctx.fill();
             ctx.fillStyle = "#ca8a04";
             ctx.beginPath();
-            ctx.arc(0, -7, 8, Math.PI, 0);
+            ctx.arc(0, -7, 8, Math.PI, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = "#dc2626";
             ctx.fillRect(-7, -4, 14, 2.5); // red ribbon

@@ -38,8 +38,8 @@ MAP_OBSTACLES = [
     {"x": 1570, "y": 450, "w": 150, "h": 70, "type": "buffet"},  # Barra de bebidas y refrescos
     {"x": 1180, "y": 380, "w": 70, "h": 65, "type": "fridge"},   # Nevera de cafeteria con comida
     {"x": 1730, "y": 380, "w": 70, "h": 55, "type": "microwave"},# Alacena con microondas
-    {"x": 1000, "y": 880, "w": 130, "h": 65, "type": "table"},   # Mesa de comensales 1
-    {"x": 1570, "y": 880, "w": 130, "h": 65, "type": "table"},   # Mesa de comensales 2
+    {"x": 1000, "y": 880, "w": 180, "h": 90, "type": "table"},   # Mesa de comensales 1
+    {"x": 1570, "y": 880, "w": 180, "h": 90, "type": "table"},   # Mesa de comensales 2
 
     # Sala de Habitación / Dormitorios (Top Right)
     {"x": 2050, "y": 100, "w": 650, "h": 20, "type": "wall"},
@@ -91,7 +91,7 @@ TASK_STATIONS = [
 
 WARDROBE_STATION = {"x": 2380, "y": 490, "radius": 60}
 FOOD_BUFFET = {"x": 1050, "y": 480, "radius": 65}
-EMERGENCY_BUTTON = {"x": 1350, "y": 700, "radius": 55}
+EMERGENCY_BUTTON = {"x": 1350, "y": 700, "radius": 80}
 
 VENTS = [
     {"id": "vent_1", "x": 480, "y": 160, "connected_to": "vent_2", "room": "Reactor"},
