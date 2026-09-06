@@ -1,6 +1,6 @@
+"""Module containing backend logic."""
 import asyncio
 import os
-import sys
 import json
 import time
 import math
@@ -31,6 +31,7 @@ ROOMS = {}
 CONNECTIONS = {}
 
 def get_lan_ip():
+    """Docstring for get_lan_ip."""
     try:
         import subprocess
         out = subprocess.check_output(['ip', 'route', 'get', '1.1.1.1'], stderr=subprocess.DEVNULL).decode().strip()
@@ -50,6 +51,7 @@ def get_lan_ip():
         return "192.168.1.4"
 
 def make_ws_frame(message_str):
+    """Docstring for make_ws_frame."""
     payload = message_str.encode('utf-8')
     length = len(payload)
     header = bytearray([0x81])
@@ -64,9 +66,9 @@ def make_ws_frame(message_str):
     return bytes(header + payload)
 
 async def read_ws_frame(reader):
+    """Docstring for read_ws_frame."""
     head = await reader.readexactly(2)
     b1, b2 = head[0], head[1]
-    fin = bool(b1 & 0x80)
     opcode = b1 & 0x0F
     is_masked = bool(b2 & 0x80)
     length = b2 & 0x7F
@@ -89,6 +91,7 @@ async def read_ws_frame(reader):
     return opcode, payload
 
 async def send_json(writer, data_dict):
+    """Docstring for send_json."""
     try:
         frame = make_ws_frame(json.dumps(data_dict))
         writer.write(frame)
@@ -97,6 +100,7 @@ async def send_json(writer, data_dict):
         pass
 
 async def broadcast_to_room(room_id, data_dict, exclude_writer=None):
+    """Docstring for broadcast_to_room."""
     room = ROOMS.get(room_id)
     if not room:
         return
@@ -105,6 +109,7 @@ async def broadcast_to_room(room_id, data_dict, exclude_writer=None):
             await send_json(w, data_dict)
 
 async def handle_ws_message(writer, msg_str):
+    """Docstring for handle_ws_message."""
     try:
         data = json.loads(msg_str)
     except Exception:
@@ -190,7 +195,6 @@ async def handle_ws_message(writer, msg_str):
             player.y = 700.0 + math.sin(spawn_angle) * 160.0
             player.target_x = player.x
             player.target_y = player.y
-            assigned_task_objs = [t for t in TASK_STATIONS if t["id"] in player.assigned_tasks]
             await send_json(writer, {
                 "type": "game_started",
                 "role": "crewmate",
@@ -386,6 +390,7 @@ async def handle_ws_message(writer, msg_str):
 
 
 async def handle_connection(reader, writer):
+    """Docstring for handle_connection."""
     conn_id = uuid.uuid4().hex[:8]
     CONNECTIONS[writer] = {"id": conn_id, "player_id": conn_id, "room_id": None}
 
@@ -537,6 +542,7 @@ async def handle_connection(reader, writer):
 
 
 async def game_tick_loop():
+    """Docstring for game_tick_loop."""
     tick_rate = 30
     dt = 1.0 / tick_rate
 
@@ -558,6 +564,7 @@ async def game_tick_loop():
 
 
 async def main():
+    """Docstring for main."""
     global PORT
     server = None
     env_port = os.environ.get("PORT")

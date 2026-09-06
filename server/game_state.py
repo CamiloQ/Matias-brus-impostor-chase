@@ -1,3 +1,4 @@
+"""Module containing backend logic."""
 import time
 import math
 import random
@@ -110,6 +111,7 @@ STEALTH_ZONES = [
 ]
 
 def is_in_stealth_zone(x, y):
+    """Docstring for is_in_stealth_zone."""
     for z in STEALTH_ZONES:
         if z["x"] <= x <= (z["x"] + z["w"]) and z["y"] <= y <= (z["y"] + z["h"]):
             return True
@@ -282,6 +284,7 @@ CHARACTERS_CATALOG = [
 ]
 
 def check_circle_rect_collision(cx, cy, radius, rx, ry, rw, rh):
+    """Docstring for check_circle_rect_collision."""
     closest_x = max(rx, min(cx, rx + rw))
     closest_y = max(ry, min(cy, ry + rh))
     dx = cx - closest_x
@@ -289,6 +292,7 @@ def check_circle_rect_collision(cx, cy, radius, rx, ry, rw, rh):
     return (dx * dx + dy * dy) < (radius * radius)
 
 def resolve_obstacle_collision(x, y, radius):
+    """Docstring for resolve_obstacle_collision."""
     x = max(radius + 10, min(x, MAP_WIDTH - radius - 10))
     y = max(radius + 10, min(y, MAP_HEIGHT - radius - 10))
 
@@ -324,6 +328,7 @@ def resolve_obstacle_collision(x, y, radius):
 class CollectibleItem:
     """Collectibles drawn in design 4: Yellow Star, Golden Coin, Blue Crystal"""
     def __init__(self, item_id, item_type, x, y):
+        """Docstring for __init__."""
         self.id = item_id
         self.type = item_type  # 'star', 'coin', 'crystal'
         self.x = x
@@ -332,6 +337,7 @@ class CollectibleItem:
         self.collected = False
 
     def to_dict(self):
+        """Docstring for to_dict."""
         return {
             "id": self.id,
             "type": self.type,
@@ -343,6 +349,7 @@ class CollectibleItem:
 class ZombieCat:
     """Child-sized Zombie Cat that roams the station"""
     def __init__(self, cat_id, x, y):
+        """Docstring for __init__."""
         self.id = cat_id
         self.x = x
         self.y = y
@@ -357,6 +364,7 @@ class ZombieCat:
         self.respawn_timer = 0.0
 
     def tick(self, dt):
+        """Docstring for tick."""
         if not self.alive:
             self.respawn_timer -= dt
             if self.respawn_timer <= 0:
@@ -376,6 +384,7 @@ class ZombieCat:
         self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
 
     def to_dict(self):
+        """Docstring for to_dict."""
         return {
             "id": self.id,
             "x": round(self.x, 1),
@@ -389,6 +398,7 @@ class ZombieCat:
 class LightOrb:
     """Floating magic clone orb dropped when a zombie cat dies; shoots out with random impulse and slows down by friction"""
     def __init__(self, orb_id, x, y, vx=0.0, vy=0.0):
+        """Docstring for __init__."""
         self.id = orb_id
         self.x = float(x)
         self.y = float(y)
@@ -401,6 +411,7 @@ class LightOrb:
         self.active = True
 
     def tick(self, dt):
+        """Docstring for tick."""
         if self.arm_timer > 0:
             self.arm_timer -= dt
             if self.arm_timer <= 0:
@@ -423,6 +434,7 @@ class LightOrb:
         self.y = max(60.0, min(float(MAP_HEIGHT - 60), self.y))
 
     def to_dict(self):
+        """Docstring for to_dict."""
         return {
             "id": self.id,
             "x": round(self.x, 1),
@@ -437,6 +449,7 @@ class LightOrb:
 class InvisibilityButton:
     """Secret magic button dropped by a ghost; grants 8s invisibility when picked up"""
     def __init__(self, button_id, x, y, spawned_by):
+        """Docstring for __init__."""
         self.id = button_id
         self.x = x
         self.y = y
@@ -446,11 +459,13 @@ class InvisibilityButton:
         self.lifetime = 45.0
 
     def tick(self, dt):
+        """Docstring for tick."""
         self.lifetime -= dt
         if self.lifetime <= 0:
             self.active = False
 
     def to_dict(self):
+        """Docstring for to_dict."""
         return {
             "id": self.id,
             "x": round(self.x, 1),
@@ -464,6 +479,7 @@ class InvisibilityButton:
 class CloneImpostor:
     """Evil impostor clone generated when a player touches the light orb"""
     def __init__(self, clone_id, creator_player):
+        """Docstring for __init__."""
         self.id = clone_id
         self.name = f"{creator_player.name} (CLON)"
         self.gender = getattr(creator_player, 'gender', 'boy')
@@ -487,6 +503,7 @@ class CloneImpostor:
         self.radius = PLAYER_RADIUS
 
     def tick(self, dt, target_players):
+        """Docstring for tick."""
         if not self.alive:
             return
 
@@ -528,6 +545,7 @@ class CloneImpostor:
         self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
 
     def to_dict(self):
+        """Docstring for to_dict."""
         return {
             "id": self.id,
             "name": self.name,
@@ -550,7 +568,9 @@ class CloneImpostor:
 
 
 class Player:
+    """Docstring for Player."""
     def __init__(self, player_id, name, color_idx, gender="boy", character="matias"):
+        """Docstring for __init__."""
         self.id = player_id
         
         # Match character with CHARACTERS_CATALOG
@@ -600,10 +620,12 @@ class Player:
         self.ghost_button_cooldown = 0.0
 
     def assign_tasks(self, task_pool):
+        """Docstring for assign_tasks."""
         self.assigned_tasks = random.sample([t["id"] for t in task_pool], min(4, len(task_pool)))
         self.completed_tasks = set()
 
     def to_dict(self, viewer_role=None, is_self=False):
+        """Docstring for to_dict."""
         visible_role = self.role if (is_self or viewer_role == "impostor" or viewer_role == "ghost") else "crewmate"
         is_disguised = bool(self.disguise and self.disguise_timer > 0)
         show_disguise = is_disguised and not is_self and viewer_role != "impostor"
@@ -655,7 +677,9 @@ class Player:
 
 
 class GameRoom:
+    """Docstring for GameRoom."""
     def __init__(self, room_id):
+        """Docstring for __init__."""
         self.id = room_id
         self.players = {}
         self.zombie_cats = []
@@ -681,6 +705,7 @@ class GameRoom:
         self.init_world_entities()
 
     def init_world_entities(self):
+        """Docstring for init_world_entities."""
         self.invis_buttons = []
         self.zombie_cats = [
             ZombieCat("cat_1", 350, 350),      # Reactor Norte
@@ -706,6 +731,7 @@ class GameRoom:
         ]
 
     def add_player(self, player_id, name="", gender="boy", character="matias"):
+        """Docstring for add_player."""
         color_idx = len(self.players)
         player = Player(player_id, name, color_idx, gender=gender, character=character)
         
@@ -721,12 +747,14 @@ class GameRoom:
         return player
 
     def remove_player(self, player_id):
+        """Docstring for remove_player."""
         if player_id in self.players:
             del self.players[player_id]
             if self.state == "PLAYING":
                 self.check_game_over()
 
     def update_customization(self, player_id, hat_id, skin_id, weapon_id, gender=None):
+        """Docstring for update_customization."""
         player = self.players.get(player_id)
         if player:
             if any(h["id"] == hat_id for h in HATS_CATALOG):
@@ -739,6 +767,7 @@ class GameRoom:
                 player.gender = gender
 
     def start_game(self):
+        """Docstring for start_game."""
         if len(self.players) < 1:
             return False
 
@@ -786,6 +815,7 @@ class GameRoom:
         return True
 
     def update_player_input(self, player_id, vx, vy):
+        """Docstring for update_player_input."""
         player = self.players.get(player_id)
         if not player or not player.alive:
             return
@@ -794,6 +824,7 @@ class GameRoom:
         player.vy = vy * speed
 
     def tick(self, dt):
+        """Docstring for tick."""
         self.state_timer += dt
 
         if self.state == "PLAYING":
@@ -912,6 +943,7 @@ class GameRoom:
                     self.state = "PLAYING"
 
     def try_punch(self, attacker_id):
+        """Docstring for try_punch."""
         if self.state != "PLAYING":
             return False, "Juego no activo", None
 
@@ -984,6 +1016,7 @@ class GameRoom:
         return True, "Golpe al aire", hit_info
 
     def try_kill(self, impostor_id, target_id):
+        """Docstring for try_kill."""
         if self.state != "PLAYING":
             return False, "Juego no activo"
 
@@ -1023,6 +1056,7 @@ class GameRoom:
         return True, "Objetivo eliminado"
 
     def try_vent(self, impostor_id, vent_id):
+        """Docstring for try_vent."""
         if self.state != "PLAYING":
             return False, "Juego no activo"
         impostor = self.players.get(impostor_id)
@@ -1055,6 +1089,7 @@ class GameRoom:
         return False, "Demasiado lejos"
 
     def try_shapeshift(self, impostor_id, target_id):
+        """Docstring for try_shapeshift."""
         if self.state != "PLAYING":
             return False, "Juego no activo"
         impostor = self.players.get(impostor_id)
@@ -1079,6 +1114,7 @@ class GameRoom:
         return True, f"¡Camuflado como {target.name}!"
 
     def try_ghost_drop_invis_button(self, ghost_id):
+        """Docstring for try_ghost_drop_invis_button."""
         if self.state != "PLAYING":
             return False, "Juego no activo"
         ghost = self.players.get(ghost_id)
@@ -1093,6 +1129,7 @@ class GameRoom:
         return True, "¡Has entregado un botón de invisibilidad!"
 
     def report_body_or_button(self, reporter_id, is_body=False, body_id=None):
+        """Docstring for report_body_or_button."""
         if self.state != "PLAYING":
             return False
         reporter = self.players.get(reporter_id)
@@ -1111,6 +1148,7 @@ class GameRoom:
         return True
 
     def cast_vote(self, voter_id, target_id):
+        """Docstring for cast_vote."""
         if self.state != "MEETING":
             return False
         voter = self.players.get(voter_id)
@@ -1124,6 +1162,7 @@ class GameRoom:
         return True
 
     def resolve_meeting(self):
+        """Docstring for resolve_meeting."""
         tally = {}
         for voter_id, target_id in self.meeting["votes"].items():
             tally[target_id] = tally.get(target_id, 0) + 1
@@ -1164,6 +1203,7 @@ class GameRoom:
             self.meeting_result_timer = 4.0
 
     def check_game_over(self):
+        """Docstring for check_game_over."""
         if self.state not in ("PLAYING", "MEETING_RESULT"):
             return False
 
@@ -1202,6 +1242,7 @@ class GameRoom:
         return False
 
     def get_snapshot_for_player(self, player_id):
+        """Docstring for get_snapshot_for_player."""
         player = self.players.get(player_id)
         viewer_role = player.role if player else "ghost"
         is_alive = player.alive if player else False
