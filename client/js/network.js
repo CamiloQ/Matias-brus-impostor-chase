@@ -2,8 +2,13 @@ class NetworkClient {
     constructor() {
         this.ws = null;
         this.connected = false;
-        this.myPlayerId = null;
-        this.currentRoom = null;
+        try {
+            this.myPlayerId = sessionStorage.getItem("chase_player_id") || null;
+            this.currentRoom = sessionStorage.getItem("chase_room_id") || null;
+        } catch (e) {
+            this.myPlayerId = null;
+            this.currentRoom = null;
+        }
         this.ping = 0;
         this.pingInterval = null;
         this.listeners = {};
@@ -119,6 +124,10 @@ class NetworkClient {
             case "joined_room":
                 this.myPlayerId = msg.player_id;
                 this.currentRoom = msg.room_id;
+                try {
+                    sessionStorage.setItem("chase_player_id", msg.player_id);
+                    sessionStorage.setItem("chase_room_id", msg.room_id);
+                } catch (e) {}
                 this.emit("joined_room", msg);
                 break;
             case "player_joined":

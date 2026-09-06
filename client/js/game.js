@@ -80,6 +80,8 @@ class GameEngine {
         this.map = mapData;
         this.myPlayerId = playerId;
         this.resize();
+        if (this.initialized) return;
+        this.initialized = true;
         window.addEventListener("resize", () => this.resize());
         window.addEventListener("orientationchange", () => {
             setTimeout(() => this.resize(), 150);
@@ -267,8 +269,14 @@ class GameEngine {
             vy /= len;
         }
 
-        if (this.inputVector.x !== vx || this.inputVector.y !== vy) {
+        const now = performance.now();
+        const isStopping = (vx === 0 && vy === 0 && (this.inputVector.x !== 0 || this.inputVector.y !== 0));
+        const hasDirectionChanged = Math.hypot(this.inputVector.x - vx, this.inputVector.y - vy) > 0.04;
+        const timeElapsed = (now - (this.lastInputTime || 0)) >= 32; // ~30Hz matching server tick rate
+
+        if (isStopping || (hasDirectionChanged && timeElapsed)) {
             this.inputVector = { x: vx, y: vy };
+            this.lastInputTime = now;
             window.network.sendInput(vx, vy);
         }
     }

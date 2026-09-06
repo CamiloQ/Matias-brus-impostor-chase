@@ -161,13 +161,18 @@ async def handle_ws_message(writer, msg_str):
         reconnect_id = data.get("reconnect_id")
         player = None
         if reconnect_id and reconnect_id in room.players:
-            old_player = room.players[reconnect_id]
-            if not getattr(old_player, "connected", True):
-                # Successful reconnect
-                player = old_player
-                player.connected = True
-                conn_info["player_id"] = reconnect_id
-                player_id = reconnect_id
+            # Reconnect takeover: close any previous stale socket for this player
+            for old_w, old_info in list(CONNECTIONS.items()):
+                if old_info.get("player_id") == reconnect_id and old_w != writer:
+                    try:
+                        old_w.close()
+                    except Exception:
+                        pass
+                    CONNECTIONS.pop(old_w, None)
+            player = room.players[reconnect_id]
+            player.connected = True
+            conn_info["player_id"] = reconnect_id
+            player_id = reconnect_id
         
         if not player:
             if len(room.players) >= 12:
@@ -187,6 +192,7 @@ async def handle_ws_message(writer, msg_str):
             "type": "joined_room",
             "room_id": target_room_id,
             "player_id": player_id,
+            "room_state": room.state,
             "player": player.to_dict(is_self=True),
             "catalogs": {
                 "characters": CHARACTERS_CATALOG,
@@ -510,8 +516,8 @@ async def handle_connection(reader, writer):
                     msg_count = 0
                     last_reset = now
                 msg_count += 1
-                if msg_count > 60:
-                    break  # Rate limit exceeded
+                if msg_count > 300:
+                    break  # Rate limit exceeded (anti-spam)
 
                 # SECURITY / RELIABILITY: a bare `await read_ws_frame(reader)` blocks
                 # forever if the socket dies without a proper close frame — very
@@ -630,7 +636,7 @@ async def handle_connection(reader, writer):
                 player.connected = False
                 
                 async def delayed_remove(r, p_id):
-                    await asyncio.sleep(8.0)
+                    await asyncio.sleep(25.0)
                     p = r.players.get(p_id)
                     if p and not getattr(p, "connected", True):
                         r.remove_player(p_id)

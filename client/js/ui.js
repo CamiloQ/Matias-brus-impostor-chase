@@ -748,7 +748,10 @@ class UIManager {
 
         window.network.on("joined_room", (data) => {
             this.lobbyScreen.classList.add("hidden");
-            this.waitingScreen.classList.remove("hidden");
+            const isPlaying = (data.room_state === "PLAYING" || window.gameEngine.gameState === "PLAYING");
+            if (!isPlaying) {
+                this.waitingScreen.classList.remove("hidden");
+            }
             this.displayRoomCode.textContent = data.room_id;
             this.catalogs = data.catalogs || {};
             if (data.player && data.player.gender) {
