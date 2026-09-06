@@ -607,6 +607,7 @@ class Player:
         self.current_task = None
         self.task_progress = 0.0
         self.completed_tasks = set()
+        self.scored_tasks = set()  # tasks already awarded points for (prevents double-scoring/cheating)
         self.assigned_tasks = []
         self.in_vent = None
         self.kills = 0
@@ -623,6 +624,7 @@ class Player:
         """Docstring for assign_tasks."""
         self.assigned_tasks = random.sample([t["id"] for t in task_pool], min(4, len(task_pool)))
         self.completed_tasks = set()
+        self.scored_tasks = set()
 
     def to_dict(self, viewer_role=None, is_self=False):
         """Docstring for to_dict."""
@@ -700,6 +702,7 @@ class GameRoom:
         }
         self.created_at = time.time()
         self.last_tick = time.time()
+        self.empty_since = None  # timestamp when the room last became empty (None = has players)
         self.episode = 1
         self.max_episodes = 9
         self.init_world_entities()
@@ -744,6 +747,7 @@ class GameRoom:
         player.target_y = player.y
 
         self.players[player_id] = player
+        self.empty_since = None
         return player
 
     def remove_player(self, player_id):
@@ -752,6 +756,8 @@ class GameRoom:
             del self.players[player_id]
             if self.state == "PLAYING":
                 self.check_game_over()
+            if not self.players:
+                self.empty_since = time.time()
 
     def update_customization(self, player_id, hat_id, skin_id, weapon_id, gender=None):
         """Docstring for update_customization."""

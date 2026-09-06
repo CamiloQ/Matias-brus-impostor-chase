@@ -1336,6 +1336,28 @@ canvas#gameCanvas {
     }
 }
 
+/* Connection status toast — shown while the client is trying to reconnect
+   after a dropped WebSocket (see network.js attemptReconnect). Kept as its
+   own class (not reusing orientation-toast's color) so the two never look
+   the same if they ever happened to show at once. */
+.connection-toast {
+    position: fixed;
+    top: max(108px, calc(env(safe-area-inset-top) + 88px));
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(217, 68, 68, 0.95);
+    color: #fff;
+    font-family: var(--font-heading);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 20px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+    z-index: 95;
+    pointer-events: none;
+    letter-spacing: 0.5px;
+}
+
 @media (orientation: landscape) and (max-height: 520px) {
     #task-checklist {
         display: none;

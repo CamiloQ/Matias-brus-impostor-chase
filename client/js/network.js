@@ -7,6 +7,9 @@ class NetworkClient {
         this.ping = 0;
         this.pingInterval = null;
         this.listeners = {};
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 8; // ~2.5 min of retrying total, see backoff below
+        this.reconnectTimer = null;
     }
 
     on(event, callback) {
@@ -31,6 +34,7 @@ class NetworkClient {
 
             this.ws.onopen = () => {
                 this.connected = true;
+                this.reconnectAttempts = 0; // reset the backoff once we're actually back online
                 this.startPingLoop();
                 resolve();
             };
@@ -48,12 +52,48 @@ class NetworkClient {
                 this.connected = false;
                 clearInterval(this.pingInterval);
                 this.emit("disconnected");
+                this.attemptReconnect();
             };
 
             this.ws.onerror = (err) => {
                 reject(err);
             };
         });
+    }
+
+    // RELIABILITY: the old version tried to reconnect exactly once, 2s after a
+    // drop. On real mobile networks a single retry is not enough (a Railway
+    // redeploy, a brief connectivity blip, a tunnel switching networks can
+    // easily outlast 2s) — after that one attempt failed there was no more
+    // code to retry, so the player was stuck disconnected until they manually
+    // reloaded the page. This retries with exponential backoff (2s, 4s, 8s...
+    // capped at 20s) up to maxReconnectAttempts, and tells the UI what's
+    // happening via "reconnecting" / "reconnect_failed" events.
+    attemptReconnect() {
+        if (!this.currentRoom || !this.myPlayerId) return;
+        if (this.reconnectTimer) return; // already scheduled
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            this.emit("reconnect_failed");
+            return;
+        }
+
+        this.reconnectAttempts++;
+        const delay = Math.min(2000 * (2 ** (this.reconnectAttempts - 1)), 20000);
+        this.emit("reconnecting", { attempt: this.reconnectAttempts, max: this.maxReconnectAttempts, delay });
+
+        this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null;
+            this.connect().then(() => {
+                this.send({
+                    type: "join_room",
+                    room_id: this.currentRoom,
+                    reconnect_id: this.myPlayerId
+                });
+            }).catch(() => {
+                // connect() rejects via ws.onerror; onclose will also fire and
+                // schedule the next attempt on its own, so nothing else to do here.
+            });
+        }, delay);
     }
 
     startPingLoop() {

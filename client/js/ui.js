@@ -49,6 +49,7 @@ class UIManager {
         this.taskChecklist = document.getElementById("task-checklist");
         this.actionControls = document.getElementById("action-controls");
         this.roleBanner = document.getElementById("role-banner");
+        this.connectionToast = document.getElementById("connection-toast");
         this.taskModal = document.getElementById("task-modal");
         this.meetingModal = document.getElementById("meeting-modal");
         this.gameOverModal = document.getElementById("game-over-modal");
@@ -939,6 +940,31 @@ class UIManager {
 
         window.network.on("error", (err) => {
             alert(err.message || "Ocurrió un error");
+        });
+
+        // RELIABILITY UX: the old code had no visual feedback at all when the
+        // connection dropped — the game just silently froze from the
+        // player's point of view. These three events (emitted by
+        // attemptReconnect() in network.js) drive a small non-blocking toast
+        // instead of an alert(), so a brief blip doesn't interrupt gameplay.
+        window.network.on("reconnecting", ({ attempt, max }) => {
+            if (this.connectionToast) {
+                this.connectionToast.textContent = `🔌 Reconectando... (${attempt}/${max})`;
+                this.connectionToast.classList.remove("hidden");
+            }
+        });
+
+        window.network.on("reconnect_failed", () => {
+            if (this.connectionToast) {
+                this.connectionToast.textContent = "⚠️ No se pudo reconectar. Recarga la página.";
+                this.connectionToast.classList.remove("hidden");
+            }
+        });
+
+        window.network.on("joined_room", () => {
+            if (this.connectionToast) {
+                this.connectionToast.classList.add("hidden");
+            }
         });
     }
 

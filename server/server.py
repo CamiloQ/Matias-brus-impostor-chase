@@ -27,6 +27,8 @@ OP_CLOSE = 0x8
 OP_PING = 0x9
 OP_PONG = 0xA
 
+MAX_WS_FRAME_BYTES = 65536  # 64KB — plenty for any legit JSON message this game sends
+
 ROOMS = {}
 CONNECTIONS = {}
 
@@ -79,6 +81,12 @@ async def read_ws_frame(reader):
     elif length == 127:
         len_bytes = await reader.readexactly(8)
         length = struct.unpack("!Q", len_bytes)[0]
+
+    # SECURITY: a client (malicious or just buggy) could otherwise declare an
+    # enormous length and force this coroutine to sit waiting on readexactly
+    # for a payload that may never fully arrive, tying up the connection.
+    if length > MAX_WS_FRAME_BYTES:
+        raise ValueError(f"WebSocket frame too large: {length} bytes")
 
     mask_key = b""
     if is_masked:
@@ -150,16 +158,29 @@ async def handle_ws_message(writer, msg_str):
 
         room = ROOMS[target_room_id]
 
-        if len(room.players) >= 12:
-            await send_json(writer, {"type": "error", "message": "La sala está llena (máx 12)"})
-            return
+        reconnect_id = data.get("reconnect_id")
+        player = None
+        if reconnect_id and reconnect_id in room.players:
+            old_player = room.players[reconnect_id]
+            if not getattr(old_player, "connected", True):
+                # Successful reconnect
+                player = old_player
+                player.connected = True
+                conn_info["player_id"] = reconnect_id
+                player_id = reconnect_id
+        
+        if not player:
+            if len(room.players) >= 12:
+                await send_json(writer, {"type": "error", "message": "La sala está llena (máx 12)"})
+                return
 
-        # Name collision handling: Disambiguate if name already exists
-        existing_names = [p.name.strip().lower() for p in room.players.values()]
-        if player_name.lower() in existing_names:
-            player_name = f"{player_name} {len(room.players) + 1}"
+            # Name collision handling: Disambiguate if name already exists
+            existing_names = [p.name.strip().lower() for p in room.players.values()]
+            if player_name.lower() in existing_names:
+                player_name = f"{player_name} {len(room.players) + 1}"
 
-        player = room.add_player(player_id, player_name, gender=player_gender, character=player_character)
+            player = room.add_player(player_id, player_name, gender=player_gender, character=player_character)
+            
         conn_info["room_id"] = target_room_id
 
         await send_json(writer, {
@@ -186,7 +207,7 @@ async def handle_ws_message(writer, msg_str):
         })
 
         # HOT-JOIN: If game is already in progress, drop player straight in as active crewmate!
-        if room.state == "PLAYING":
+        if room.state == "PLAYING" and not reconnect_id:
             player.assign_tasks(TASK_STATIONS)
             player.role = "crewmate"
             player.alive = True
@@ -195,13 +216,22 @@ async def handle_ws_message(writer, msg_str):
             player.y = 700.0 + math.sin(spawn_angle) * 160.0
             player.target_x = player.x
             player.target_y = player.y
+            
             await send_json(writer, {
                 "type": "game_started",
                 "role": "crewmate",
                 "assigned_tasks": player.assigned_tasks,
                 "players_count": len(room.players)
             })
-
+        elif room.state in ("PLAYING", "MEETING", "MEETING_RESULT") and reconnect_id:
+            # Reconnected player, just resend game_started with their existing state
+            await send_json(writer, {
+                "type": "game_started",
+                "role": player.role,
+                "assigned_tasks": player.assigned_tasks,
+                "players_count": len(room.players)
+            })
+            
         await broadcast_to_room(target_room_id, {
             "type": "player_joined",
             "player": player.to_dict(),
@@ -271,6 +301,7 @@ async def handle_ws_message(writer, msg_str):
                 p.hp = 100
                 p.score = 0
                 p.completed_tasks = set()
+                p.scored_tasks = set()
                 p.current_task = None
                 p.in_vent = None
             await broadcast_to_room(room_id, {
@@ -344,7 +375,14 @@ async def handle_ws_message(writer, msg_str):
         if room and room.state == "PLAYING":
             task_id = data.get("task_id")
             player = room.players.get(player_id)
-            if player and player.alive:
+            # SECURITY: only allow starting a task that was actually assigned to this
+            # player and isn't already done — a client could otherwise "start" an
+            # arbitrary task_id it was never given.
+            if (
+                player and player.alive and player.role == "crewmate"
+                and task_id in player.assigned_tasks
+                and task_id not in player.completed_tasks
+            ):
                 player.current_task = task_id
                 player.task_progress = 0.0
 
@@ -352,10 +390,22 @@ async def handle_ws_message(writer, msg_str):
         if room and room.state == "PLAYING":
             task_id = data.get("task_id")
             player = room.players.get(player_id)
-            if player and player.alive and task_id:
-                player.completed_tasks.add(task_id)
-                player.current_task = None
-                player.task_progress = 0.0
+            # SECURITY: this message is only a *notification* that the client's
+            # mini-game finished — it must NEVER be the thing that grants the
+            # task. The server already tracks elapsed task_progress every tick
+            # (game_state.py room.tick()) and moves a task into completed_tasks
+            # by itself once the station's real duration has elapsed. So here we
+            # only check that the server's own authoritative state agrees the
+            # task is genuinely done, and award points exactly once per task.
+            # Without this check a modified client could call complete_task in a
+            # loop with a fake task_id and win instantly.
+            if (
+                player and player.role == "crewmate" and task_id
+                and task_id in player.assigned_tasks
+                and task_id in player.completed_tasks
+                and task_id not in player.scored_tasks
+            ):
+                player.scored_tasks.add(task_id)
                 player.score += 150
                 room.check_game_over()
                 await broadcast_to_room(room_id, {
@@ -411,7 +461,29 @@ async def handle_connection(reader, writer):
                 k, v = header_text.split(":", 1)
                 headers[k.strip().lower()] = v.strip()
 
+        req_origin = headers.get("origin", "")
+        allowed_origins = [
+            "https://matias-brus-impostor-chase-production.up.railway.app",
+            "http://localhost",
+            "http://127.0.0.1",
+            f"http://{get_lan_ip()}"
+        ]
+        
+        is_allowed_origin = False
+        if not req_origin:
+            is_allowed_origin = True
+        else:
+            for ao in allowed_origins:
+                if req_origin.startswith(ao):
+                    is_allowed_origin = True
+                    break
+                    
+        cors_header = f"Access-Control-Allow-Origin: {req_origin if is_allowed_origin else 'null'}\r\n"
+
         if headers.get("upgrade", "").lower() == "websocket":
+            if not is_allowed_origin:
+                writer.close()
+                return
             sec_key = headers.get("sec-websocket-key")
             if not sec_key:
                 writer.close()
@@ -429,8 +501,32 @@ async def handle_connection(reader, writer):
             writer.write(response.encode())
             await writer.drain()
 
+            msg_count = 0
+            last_reset = time.time()
+
             while True:
-                opcode, payload = await read_ws_frame(reader)
+                now = time.time()
+                if now - last_reset > 1.0:
+                    msg_count = 0
+                    last_reset = now
+                msg_count += 1
+                if msg_count > 60:
+                    break  # Rate limit exceeded
+
+                # SECURITY / RELIABILITY: a bare `await read_ws_frame(reader)` blocks
+                # forever if the socket dies without a proper close frame — very
+                # common on mobile (screen lock, app backgrounded, carrier NAT
+                # timeout). Without this timeout the server never notices, so
+                # `player.connected` stays True forever and the reconnect_id flow
+                # in join_room refuses to hand the slot back, leaving a ghost
+                # player stuck in the room. The client already pings every 2s
+                # (network.js), so 25s of total silence is a safe, generous
+                # threshold to declare the connection dead.
+                try:
+                    opcode, payload = await asyncio.wait_for(read_ws_frame(reader), timeout=25.0)
+                except asyncio.TimeoutError:
+                    break
+
                 if opcode == OP_CLOSE:
                     break
                 elif opcode == OP_TEXT:
@@ -463,7 +559,7 @@ async def handle_connection(reader, writer):
                     f"HTTP/1.1 200 OK\r\n"
                     f"Content-Type: application/json; charset=utf-8\r\n"
                     f"Content-Length: {len(body)}\r\n"
-                    f"Access-Control-Allow-Origin: *\r\n"
+                    f"{cors_header}"
                     f"Connection: close\r\n\r\n"
                 ).encode("utf-8") + body
                 writer.write(res)
@@ -487,7 +583,7 @@ async def handle_connection(reader, writer):
                     f"HTTP/1.1 200 OK\r\n"
                     f"Content-Type: application/json; charset=utf-8\r\n"
                     f"Content-Length: {len(body)}\r\n"
-                    f"Access-Control-Allow-Origin: *\r\n"
+                    f"{cors_header}"
                     f"Connection: close\r\n\r\n"
                 ).encode("utf-8") + body
                 writer.write(res)
@@ -511,7 +607,7 @@ async def handle_connection(reader, writer):
                     f"HTTP/1.1 200 OK\r\n"
                     f"Content-Type: {mime}; charset=utf-8\r\n"
                     f"Content-Length: {len(content)}\r\n"
-                    f"Access-Control-Allow-Origin: *\r\n"
+                    f"{cors_header}"
                     f"Connection: close\r\n\r\n"
                 ).encode("utf-8") + content
                 writer.write(res)
@@ -529,27 +625,56 @@ async def handle_connection(reader, writer):
         player_id = info.get("player_id")
         if room_id and room_id in ROOMS:
             room = ROOMS[room_id]
-            room.remove_player(player_id)
-            asyncio.create_task(broadcast_to_room(room_id, {
-                "type": "player_left",
-                "player_id": player_id,
-                "players_count": len(room.players)
-            }))
+            player = room.players.get(player_id)
+            if player:
+                player.connected = False
+                
+                async def delayed_remove(r, p_id):
+                    await asyncio.sleep(8.0)
+                    p = r.players.get(p_id)
+                    if p and not getattr(p, "connected", True):
+                        r.remove_player(p_id)
+                        await broadcast_to_room(r.id, {
+                            "type": "player_left",
+                            "player_id": p_id,
+                            "players_count": len(r.players)
+                        })
+                
+                asyncio.create_task(delayed_remove(room, player_id))
         try:
             writer.close()
         except Exception:
             pass
 
 
+ROOM_EMPTY_TTL_SECONDS = 300  # delete a room 5 minutes after its last player leaves
+
+
 async def game_tick_loop():
     """Docstring for game_tick_loop."""
     tick_rate = 30
     dt = 1.0 / tick_rate
+    last_cleanup = time.time()
 
     while True:
         start_time = time.time()
 
+        # RELIABILITY: nothing in this codebase ever deleted a room, so every
+        # room code that was ever created (including abandoned/typo'd ones)
+        # stayed in ROOMS forever and kept being ticked 30x/sec — a slow,
+        # permanent memory + CPU leak. We skip ticking empty rooms immediately,
+        # and actually delete them a few minutes after their last player left
+        # (keeping a short grace window in case someone reconnects/rejoins).
+        if start_time - last_cleanup > 30:
+            for room_id, room in list(ROOMS.items()):
+                if room.empty_since and (start_time - room.empty_since) > ROOM_EMPTY_TTL_SECONDS:
+                    del ROOMS[room_id]
+            last_cleanup = start_time
+
         for room_id, room in list(ROOMS.items()):
+            if not room.players:
+                continue
+
             room.tick(dt)
 
             for w, info in list(CONNECTIONS.items()):
