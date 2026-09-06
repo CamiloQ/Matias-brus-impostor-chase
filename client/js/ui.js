@@ -879,7 +879,7 @@ class UIManager {
                 color = "#00e676";
                 window.soundEngine.playCatSound();
             } else if (hit.type === "clone_hit") {
-                text = hit.clone_dead ? "💀 ¡CLON IMPOSTOR ELIMINADO!" : "⚔️ ¡GOLPE AL CLON!";
+                text = hit.clone_dead ? "Venciste al impostor" : "¡GOLPE AL CLON!";
                 color = "#ff3366";
             } else if (hit.type === "player_hit") {
                 text = "💥 ¡PELEA!";
