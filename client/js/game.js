@@ -785,7 +785,7 @@ class GameEngine {
                 ctx.font = "13px 'Noto Color Emoji', sans-serif";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                const icon = p.gender === "girl" ? "👧" : (isMatias ? "👦" : "🧑");
+                const icon = p.gender === "girl" ? "👧" : (p.character === "matias" ? "👦" : "🧑");
                 ctx.fillText(icon, 0, 1);
 
                 // Name & Distance Tag pill below badge

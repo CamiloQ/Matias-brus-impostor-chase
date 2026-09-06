@@ -1,0 +1,25 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "Videojuego web multijugador en tiempo real inspirado en los dibujos y conceptos originales de **Matias & Brus**.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CamiloQ/Matias-brus-impostor-chase.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/CamiloQ/Matias-brus-impostor-chase/issues"
+  },
+  "homepage": "https://github.com/CamiloQ/Matias-brus-impostor-chase#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0"
+  }
+}

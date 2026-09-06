@@ -12,6 +12,10 @@ const CHARACTER_METADATA = {
     ciclope_astral: { name: "Cíclope Astral", icon: "👁️", color: "#475569" }
 };
 
+function sanitizeHTML(text) {
+    if (!text) return "";
+    return text.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
 class UIManager {
     constructor() {
         this.joystickVector = { x: 0, y: 0 };
@@ -673,7 +677,7 @@ class UIManager {
         if ("vibrate" in navigator) {
             try {
                 navigator.vibrate(pattern);
-            } catch (e) {}
+            } catch (e) { /* eslint-disable-line no-unused-vars */ }
         }
     }
 
@@ -711,8 +715,8 @@ class UIManager {
                 card.className = "room-card-entry";
                 card.innerHTML = `
                     <div class="room-card-info">
-                        <div class="room-card-code">🚀 ${r.room_id}</div>
-                        <div class="room-card-status">${stateLabel} · ${namesStr}</div>
+                        <div class="room-card-code">🚀 ${sanitizeHTML(r.room_id)}</div>
+                        <div class="room-card-status">${sanitizeHTML(stateLabel)} · ${sanitizeHTML(namesStr)}</div>
                     </div>
                     <div class="room-card-players">👤 ${r.players}/${r.max_players}</div>
                     <button class="room-card-join-btn">UNIRSE</button>
@@ -879,7 +883,7 @@ class UIManager {
                 color = "#00e676";
                 window.soundEngine.playCatSound();
             } else if (hit.type === "clone_hit") {
-                text = hit.clone_dead ? "Venciste al impostor" : "¡GOLPE AL CLON!";
+                text = hit.clone_dead ? "Venciste al impostor" : "GOLPE AL CLON";
                 color = "#ff3366";
             } else if (hit.type === "player_hit") {
                 text = "💥 ¡PELEA!";
@@ -908,7 +912,7 @@ class UIManager {
         window.network.on("chat_message", (msg) => {
             const div = document.createElement("div");
             div.className = "chat-msg";
-            div.innerHTML = `<span class="chat-sender" style="color: ${msg.color?.hex || '#00d2ff'}">${msg.name}:</span> <span>${msg.text}</span>`;
+            div.innerHTML = `<span class="chat-sender" style="color: ${sanitizeHTML(msg.color?.hex || '#00d2ff')}">${sanitizeHTML(msg.name)}:</span> <span>${sanitizeHTML(msg.text)}</span>`;
             this.chatMessages.appendChild(div);
             this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
 
@@ -1084,7 +1088,7 @@ class UIManager {
             const colorHex = p.color?.hex || meta?.color || "#3498db";
             el.innerHTML = `
                 <div class="player-avatar-circle" style="background-color: ${colorHex}; display:flex; align-items:center; justify-content:center; font-size:16px;">${icon}</div>
-                <span>${p.name}</span>
+                <span>${sanitizeHTML(p.name)}</span>
             `;
             this.waitingGrid.appendChild(el);
         });
@@ -1236,7 +1240,7 @@ class UIManager {
                         ${icon}
                     </div>
                     <div class="ss-info">
-                        <span class="ss-name">${cand.name}</span>
+                        <span class="ss-name">${sanitizeHTML(cand.name)}</span>
                         <span class="ss-role-text">${charName} (${cand.gender === 'girl' ? 'Niña' : 'Niño'})</span>
                     </div>
                     <button class="ss-btn-pick">CAMUFLARSE</button>
@@ -1287,7 +1291,7 @@ class UIManager {
             if (e) {
                 e.preventDefault();
                 if (e.pointerId && holdBtn.setPointerCapture) {
-                    try { holdBtn.setPointerCapture(e.pointerId); } catch(err) {}
+                    try { holdBtn.setPointerCapture(e.pointerId); } catch(err) { /* eslint-disable-line no-unused-vars */ }  
                 }
             }
             if (isHolding) return;
@@ -1327,7 +1331,7 @@ class UIManager {
 
         const stopHold = (e) => {
             if (e && e.pointerId && holdBtn.releasePointerCapture) {
-                try { holdBtn.releasePointerCapture(e.pointerId); } catch(err) {}
+                try { holdBtn.releasePointerCapture(e.pointerId); } catch(err) { /* eslint-disable-line no-unused-vars */ }  
             }
             if (!isHolding) return;
             isHolding = false;
@@ -1408,7 +1412,7 @@ class UIManager {
             card.innerHTML = `
                 <div style="display:flex; align-items:center; gap:8px;">
                     <div class="player-avatar-circle" style="background-color:${colorHex}; width:26px; height:26px; display:flex; align-items:center; justify-content:center; font-size:13px;">${gIcon}</div>
-                    <strong>${p.name}</strong>
+                    <strong>${sanitizeHTML(p.name)}</strong>
                 </div>
                 <span>${!p.alive ? '☠ MUERTO' : 'VOTAR'}</span>
             `;
@@ -1420,7 +1424,7 @@ class UIManager {
                     document.querySelectorAll(".vote-card").forEach(c => c.classList.remove("selected"));
                     card.classList.add("selected");
                     window.network.sendVote(p.id);
-                    document.getElementById("vote-status-msg").textContent = `Has votado por: ${p.name}`;
+                    document.getElementById("vote-status-msg").textContent = `Has votado por: ${sanitizeHTML(p.name)}`;
                 });
             }
             grid.appendChild(card);
@@ -1491,7 +1495,7 @@ class UIManager {
             if (e.pointerType === "mouse") return; // Joystick is only for touch screens
 
             activePointerId = e.pointerId;
-            try { this.touchZone.setPointerCapture(e.pointerId); } catch (_) {}
+            try { this.touchZone.setPointerCapture(e.pointerId); } catch (_) { /* eslint-disable-line no-unused-vars */ }
 
             const rect = this.touchZone.getBoundingClientRect();
             origin = {
@@ -1531,7 +1535,7 @@ class UIManager {
 
         const onPointerUp = (e) => {
             if (activePointerId !== e.pointerId) return;
-            try { this.touchZone.releasePointerCapture(e.pointerId); } catch (_) {}
+            try { this.touchZone.releasePointerCapture(e.pointerId); } catch (_) { /* eslint-disable-line no-unused-vars */ }
             activePointerId = null;
             this.joystickBase.classList.add("hidden");
             this.joystickStick.style.transform = "translate(0px, 0px)";
