@@ -538,14 +538,14 @@ class UIManager {
         bindActionTap(this.btnUse, () => {
             this.vibrate(30);
             window.soundEngine.playClick();
-            if (window.gameEngine.nearWardrobe) {
-                this.openWardrobeModal();
-            } else if (window.gameEngine.nearbyTask) {
+            if (window.gameEngine.nearbyTask) {
                 if (window.gameEngine.nearbyTask.id === "task_8") {
                     this.openSongBattleModal();
                 } else {
                     this.openTaskModal(window.gameEngine.nearbyTask);
                 }
+            } else if (window.gameEngine.nearWardrobe) {
+                this.openWardrobeModal();
             } else if (window.gameEngine.nearEmergencyButton) {
                 this.vibrate([100, 50, 100]);
                 window.soundEngine.playAlarm();
@@ -807,11 +807,27 @@ class UIManager {
             }
         });
 
+        window.network.on("reconnected", (data) => {
+            if (data.assigned_tasks && data.assigned_tasks.length > 0) {
+                window.gameEngine.assignedTasks = data.assigned_tasks;
+                this.renderTaskList(data.assigned_tasks);
+            }
+            if (data.role) {
+                this.showRoleBanner(data.role);
+            }
+        });
+
         window.network.on("sync", (snapshot) => {
             window.gameEngine.handleSync(snapshot);
             this.taskProgressFill.style.width = `${snapshot.task_bar}%`;
 
             const myPlayerObj = snapshot.players.find(p => p.id === window.gameEngine.myPlayerId);
+            if (myPlayerObj && Array.isArray(myPlayerObj.assigned_tasks) && myPlayerObj.assigned_tasks.length > 0) {
+                if (!window.gameEngine.assignedTasks || window.gameEngine.assignedTasks.length === 0) {
+                    window.gameEngine.assignedTasks = myPlayerObj.assigned_tasks;
+                    this.renderTaskList(myPlayerObj.assigned_tasks);
+                }
+            }
             if (myPlayerObj && Array.isArray(myPlayerObj.completed_tasks)) {
                 myPlayerObj.completed_tasks.forEach(taskId => {
                     const li = document.getElementById(`task-item-${taskId}`);
@@ -1189,12 +1205,12 @@ class UIManager {
 
         if (state.task || state.emergency || state.wardrobe) {
             this.btnUse.disabled = false;
-            if (state.wardrobe) {
-                this.btnUse.querySelector(".btn-text").textContent = "VESTIDOR";
-            } else if (state.emergency) {
-                this.btnUse.querySelector(".btn-text").textContent = "EMERGENCIA";
-            } else {
+            if (state.task) {
                 this.btnUse.querySelector(".btn-text").textContent = "TAREA";
+            } else if (state.wardrobe) {
+                this.btnUse.querySelector(".btn-text").textContent = "VESTIDOR";
+            } else {
+                this.btnUse.querySelector(".btn-text").textContent = "EMERGENCIA";
             }
         } else {
             this.btnUse.disabled = true;
@@ -1329,15 +1345,20 @@ class UIManager {
             this.vibrate(30);
             if (window.soundEngine) window.soundEngine.playClick();
 
+            const durationSec = Math.max(1.5, (task && task.duration) || 2.5);
+            const tickMs = 50;
+            const stepIncrement = (100 / (durationSec * 1000)) * tickMs;
+
             if (this.taskInterval) clearInterval(this.taskInterval);
             this.taskInterval = setInterval(() => {
                 if (!isHolding) return;
-                progress = Math.min(100, progress + 4);
-                if (progBar) progBar.style.width = `${progress}%`;
-                if (percentLabel) percentLabel.textContent = `${progress}%`;
+                progress = Math.min(100, progress + stepIncrement);
+                const displayPercent = Math.round(progress);
+                if (progBar) progBar.style.width = `${displayPercent}%`;
+                if (percentLabel) percentLabel.textContent = `${displayPercent}%`;
                 const hint = document.getElementById("task-status-hint");
-                if (hint) hint.textContent = `⚡ CALIBRANDO SISTEMAS... [${progress}%]`;
-                if (progress % 20 === 0) this.vibrate(15);
+                if (hint) hint.textContent = `⚡ CALIBRANDO SISTEMAS... [${displayPercent}%]`;
+                if (displayPercent % 20 === 0) this.vibrate(15);
 
                 if (progress >= 100) {
                     clearInterval(this.taskInterval);
@@ -1355,7 +1376,7 @@ class UIManager {
                     window.network.sendCompleteTask(task.id);
                     setTimeout(() => this.closeTaskModal(true), 500);
                 }
-            }, 60);
+            }, tickMs);
         };
 
         const stopHold = (e) => {

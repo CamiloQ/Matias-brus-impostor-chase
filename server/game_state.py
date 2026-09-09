@@ -141,7 +141,7 @@ TASK_STATIONS = [
         "x": 330,
         "y": 310,
         "room": "Reactor",
-        "radius": 50,
+        "radius": 85,
         "duration": 3.0,
     },
     {
@@ -150,7 +150,7 @@ TASK_STATIONS = [
         "x": 1050,
         "y": 490,
         "room": "Cafetería",
-        "radius": 50,
+        "radius": 85,
         "duration": 2.5,
     },
     {
@@ -159,7 +159,7 @@ TASK_STATIONS = [
         "x": 1650,
         "y": 490,
         "room": "Cafetería",
-        "radius": 50,
+        "radius": 85,
         "duration": 2.5,
     },
     {
@@ -168,7 +168,7 @@ TASK_STATIONS = [
         "x": 2200,
         "y": 210,
         "room": "Habitación",
-        "radius": 50,
+        "radius": 85,
         "duration": 2.5,
     },
     {
@@ -177,7 +177,7 @@ TASK_STATIONS = [
         "x": 2380,
         "y": 490,
         "room": "Habitación",
-        "radius": 50,
+        "radius": 85,
         "duration": 2.0,
     },
     {
@@ -186,7 +186,7 @@ TASK_STATIONS = [
         "x": 410,
         "y": 1220,
         "room": "Electricidad",
-        "radius": 50,
+        "radius": 85,
         "duration": 3.0,
     },
     {
@@ -195,7 +195,7 @@ TASK_STATIONS = [
         "x": 2380,
         "y": 920,
         "room": "Navegación",
-        "radius": 50,
+        "radius": 85,
         "duration": 3.5,
     },
     {
@@ -204,7 +204,7 @@ TASK_STATIONS = [
         "x": 1370,
         "y": 1600,
         "room": "Sala de Música",
-        "radius": 60,
+        "radius": 95,
         "duration": 4.0,
     },
 ]
@@ -786,9 +786,7 @@ class Player:
 
     def assign_tasks(self, task_pool):
         """Docstring for assign_tasks."""
-        self.assigned_tasks = random.sample(
-            [t["id"] for t in task_pool], min(4, len(task_pool))
-        )
+        self.assigned_tasks = [t["id"] for t in task_pool]
         self.completed_tasks = set()
         self.scored_tasks = set()
 
@@ -850,6 +848,7 @@ class Player:
             "ghost_button_cd": round(max(0, self.ghost_button_cooldown), 1),
             "completed_tasks_count": len(self.completed_tasks),
             "completed_tasks": list(self.completed_tasks) if is_self else [],
+            "assigned_tasks": list(self.assigned_tasks) if is_self else [],
             "total_tasks_count": len(self.assigned_tasks),
             "kills": self.kills,
             "ping": self.ping,

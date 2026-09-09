@@ -188,6 +188,23 @@ class GameEngine {
                     if (window.soundEngine) window.soundEngine.playAlarm();
                     if (window.uiManager) window.uiManager.vibrate([100, 50, 100]);
                     window.network.sendReport(false);
+                    return;
+                }
+            }
+
+            if (this.nearbyTask) {
+                const distToTask = Math.hypot(worldX - this.nearbyTask.x, worldY - this.nearbyTask.y);
+                if (distToTask <= (this.nearbyTask.radius || 85) + 35) {
+                    if (window.soundEngine) window.soundEngine.playClick();
+                    if (window.uiManager) {
+                        window.uiManager.vibrate(30);
+                        if (this.nearbyTask.id === "task_8") {
+                            window.uiManager.openSongBattleModal();
+                        } else {
+                            window.uiManager.openTaskModal(this.nearbyTask);
+                        }
+                    }
+                    return;
                 }
             }
         });
@@ -195,14 +212,14 @@ class GameEngine {
 
     handleKeyShortcuts(e) {
         if (e.code === "Space" || e.code === "KeyE") {
-            if (this.nearWardrobe) {
-                window.uiManager.openWardrobeModal();
-            } else if (this.nearbyTask) {
+            if (this.nearbyTask) {
                 if (this.nearbyTask.id === "task_8") {
                     window.uiManager.openSongBattleModal();
                 } else {
                     window.uiManager.openTaskModal(this.nearbyTask);
                 }
+            } else if (this.nearWardrobe) {
+                window.uiManager.openWardrobeModal();
             } else if (this.nearEmergencyButton) {
                 window.soundEngine.playAlarm();
                 window.network.sendReport(false);
@@ -332,6 +349,12 @@ class GameEngine {
                 if (Array.isArray(pData.completed_tasks)) {
                     this.completedTasks = new Set(pData.completed_tasks);
                 }
+                if (Array.isArray(pData.assigned_tasks) && pData.assigned_tasks.length > 0) {
+                    this.assignedTasks = pData.assigned_tasks;
+                    if (window.uiManager && (!window.uiManager.taskList.children || window.uiManager.taskList.children.length === 0)) {
+                        window.uiManager.renderTaskList(pData.assigned_tasks);
+                    }
+                }
             }
         });
 
@@ -383,7 +406,8 @@ class GameEngine {
                         continue;
                     }
                     const dist = Math.hypot(me.renderX - t.x, me.renderY - t.y);
-                    if (dist <= t.radius + 20) {
+                    const reachThreshold = Math.max((t.radius || 85) + 30, 115);
+                    if (dist <= reachThreshold) {
                         this.nearbyTask = t;
                         break;
                     }
@@ -650,32 +674,32 @@ class GameEngine {
         // 1. Space Floor
         this.drawFloor(ctx);
 
-        // 3. Room Special Decor (Nevera, platos de comida humeantes, lavadora, muebles/sofá, TV)
+        // 2. Room Special Decor (Nevera, platos de comida humeantes, lavadora, muebles/sofá, TV)
         this.drawRoomDecor(ctx);
 
-        // 4. Stations & Emergency Button
-        this.drawStations(ctx);
-
-        // 5. Vents Grates
+        // 3. Vents Grates
         this.drawVents(ctx);
 
-        // 6. Ghost Invisibility Buttons (Dropped by dead players)
+        // 4. Ghost Invisibility Buttons (Dropped by dead players)
         this.drawInvisButtons(ctx);
 
-        // 7. Collectibles (Stars, Coins, Crystals from Design 4)
+        // 5. Collectibles (Stars, Coins, Crystals from Design 4)
         this.drawCollectibles(ctx);
 
-        // 8. Dead bodies
+        // 6. Dead bodies
         this.drawDeadBodies(ctx);
 
-        // 9. Light Orbs (Floating magic clone lights)
+        // 7. Light Orbs (Floating magic clone lights)
         this.drawLightOrbs(ctx);
 
-        // 10. Zombie Cats
+        // 8. Zombie Cats
         this.drawZombieCats(ctx);
 
         // 11. Obstacles and Walls
         this.drawObstacles(ctx);
+
+        // 11.1 Stations & Emergency Button
+        this.drawStations(ctx);
 
         // 12. Clones
         this.drawCloneImpostors(ctx);
@@ -2907,6 +2931,22 @@ class GameEngine {
             ctx.fillStyle = "#fff";
             ctx.textAlign = "center";
             ctx.fillText(t.name, t.x, t.y - 22);
+
+            if (isAssigned && isNear) {
+                const badgeY = t.y - 44 + Math.sin(Date.now() / 200) * 3;
+                ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+                ctx.strokeStyle = "#00e676";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(t.x - 90, badgeY - 12, 180, 24, 6);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.font = "bold 11px 'Rajdhani', sans-serif";
+                ctx.fillStyle = "#00e676";
+                ctx.textAlign = "center";
+                ctx.fillText("⚡ ¡PULSA ESPACIO/E O TOCA AQUÍ!", t.x, badgeY + 4);
+            }
             ctx.restore();
         });
     }

@@ -454,9 +454,6 @@ async def handle_ws_message(writer, msg_str):
         if room and room.state == "PLAYING":
             task_id = data.get("task_id")
             player = room.players.get(player_id)
-            # SECURITY: only allow starting a task that was actually assigned to this
-            # player and isn't already done — a client could otherwise "start" an
-            # arbitrary task_id it was never given.
             if (
                 player
                 and player.alive
@@ -464,43 +461,49 @@ async def handle_ws_message(writer, msg_str):
                 and task_id in player.assigned_tasks
                 and task_id not in player.completed_tasks
             ):
-                player.current_task = task_id
-                player.task_progress = 0.0
+                station = next((t for t in TASK_STATIONS if t["id"] == task_id), None)
+                if station:
+                    dist = math.hypot(player.x - station["x"], player.y - station["y"])
+                    if dist <= station["radius"] + 80:
+                        player.current_task = task_id
+                        player.task_progress = 0.0
 
     elif msg_type == "complete_task":
         if room and room.state == "PLAYING":
             task_id = data.get("task_id")
             player = room.players.get(player_id)
-            # SECURITY: this message is only a *notification* that the client's
-            # mini-game finished — it must NEVER be the thing that grants the
-            # task. The server already tracks elapsed task_progress every tick
-            # (game_state.py room.tick()) and moves a task into completed_tasks
-            # by itself once the station's real duration has elapsed. So here we
-            # only check that the server's own authoritative state agrees the
-            # task is genuinely done, and award points exactly once per task.
-            # Without this check a modified client could call complete_task in a
-            # loop with a fake task_id and win instantly.
             if (
                 player
+                and player.alive
                 and player.role == "crewmate"
                 and task_id
                 and task_id in player.assigned_tasks
-                and task_id in player.completed_tasks
                 and task_id not in player.scored_tasks
             ):
-                player.scored_tasks.add(task_id)
-                player.score += 150
-                room.check_game_over()
-                await broadcast_to_room(
-                    room_id,
-                    {
-                        "type": "task_completed",
-                        "player_id": player_id,
-                        "task_id": task_id,
-                        "completed_count": len(player.completed_tasks),
-                        "total_tasks": len(player.assigned_tasks),
-                    },
+                station = next((t for t in TASK_STATIONS if t["id"] == task_id), None)
+                min_progress = max(0.5, station["duration"] - 0.6) if station else 1.0
+                is_done_by_tick = task_id in player.completed_tasks
+                is_done_by_hold = (
+                    player.current_task == task_id
+                    and player.task_progress >= min_progress
                 )
+                if is_done_by_tick or is_done_by_hold:
+                    player.completed_tasks.add(task_id)
+                    player.scored_tasks.add(task_id)
+                    player.current_task = None
+                    player.task_progress = 0.0
+                    player.score += 150
+                    room.check_game_over()
+                    await broadcast_to_room(
+                        room_id,
+                        {
+                            "type": "task_completed",
+                            "player_id": player_id,
+                            "task_id": task_id,
+                            "completed_count": len(player.completed_tasks),
+                            "total_tasks": len(player.assigned_tasks),
+                        },
+                    )
 
     elif msg_type == "cancel_task":
         if room and room.state == "PLAYING":
