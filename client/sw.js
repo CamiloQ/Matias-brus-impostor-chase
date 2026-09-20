@@ -1,5 +1,5 @@
 // Service Worker for Matias & Brus: Impostor Chase
-const CACHE_NAME = 'impostor-chase-v2';
+const CACHE_NAME = 'impostor-chase-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -12,6 +12,8 @@ const ASSETS_TO_CACHE = [
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];
+
+const STATIC_ASSETS = /\.(js|css|png|svg|json)$/;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -38,20 +40,40 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Never intercept WebSocket or API calls
-  if (event.request.url.includes('/ws')) {
+  // Never intercept WebSocket or real-time endpoints
+  const url = event.request.url;
+  if (url.includes('/ws')) {
     return;
   }
-  // Network first to ensure latest updates; fallback to cache if offline
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (response && response.status === 200) {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-        }
-        return response;
+
+  if (STATIC_ASSETS.test(url)) {
+    // Cache-first with background revalidation (stale-while-revalidate)
+    event.respondWith(
+      caches.match(event.request, { ignoreSearch: true }).then((cached) => {
+        const fetchPromise = fetch(event.request)
+          .then((response) => {
+            if (response && response.status === 200) {
+              const responseClone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+            }
+            return response;
+          })
+          .catch(() => cached);
+        return cached || fetchPromise;
       })
-      .catch(() => caches.match(event.request))
-  );
+    );
+  } else {
+    // index.html and dynamic content: network-first, fallback to cache
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request, { ignoreSearch: true }))
+    );
+  }
 });

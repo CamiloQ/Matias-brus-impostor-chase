@@ -518,12 +518,21 @@ class GameEngine {
     update(dt) {
         const me = this.players.get(this.myPlayerId);
         if (me) {
-            this.camera.x += (me.renderX - this.camera.x) * 0.12;
-            this.camera.y += (me.renderY - this.camera.y) * 0.12;
+            let targetX = me.renderX;
+            let targetY = me.renderY;
+            if (!me.alive && this.deadBodies) {
+                const myBody = this.deadBodies.find(b => b.victim_id === this.myPlayerId && !b.is_trapped_in_plant);
+                if (myBody) {
+                    targetX = myBody.x;
+                    targetY = myBody.y;
+                }
+            }
+            this.camera.x += (targetX - this.camera.x) * 0.12;
+            this.camera.y += (targetY - this.camera.y) * 0.12;
 
             // Update current room name pill on HUD
-            const rx = me.renderX;
-            const ry = me.renderY;
+            const rx = targetX;
+            const ry = targetY;
             let currentRoom = "PASILLO CONECTOR";
             if (rx < 600 && ry < 600) {
                 currentRoom = "REACTOR DE ENERGÍA";
@@ -4132,9 +4141,12 @@ class GameEngine {
             ctx.font = "bold 13px 'Orbitron', sans-serif";
             ctx.fillStyle = "#facc15";
             ctx.textAlign = "center";
-            ctx.shadowColor = "#eab308";
-            ctx.shadowBlur = 8;
+            if (this.graphicsQuality !== "low") {
+                ctx.shadowColor = "#eab308";
+                ctx.shadowBlur = 8;
+            }
             ctx.fillText("¡ALERTA!", 0, -28);
+            if (this.graphicsQuality !== "low") ctx.shadowBlur = 0;
             ctx.restore();
             return;
         } else if (isCelebrating) {
@@ -4144,9 +4156,12 @@ class GameEngine {
             ctx.font = "14px 'Orbitron', sans-serif";
             ctx.fillStyle = "#38bdf8";
             ctx.textAlign = "center";
-            ctx.shadowColor = "#38bdf8";
-            ctx.shadowBlur = 10;
+            if (this.graphicsQuality !== "low") {
+                ctx.shadowColor = "#38bdf8";
+                ctx.shadowBlur = 10;
+            }
             ctx.fillText("⭐", 0, -28);
+            if (this.graphicsQuality !== "low") ctx.shadowBlur = 0;
             ctx.restore();
             return;
         }
@@ -4177,9 +4192,12 @@ class GameEngine {
         ctx.font = "bold 9px 'Orbitron', sans-serif";
         ctx.fillStyle = "#38bdf8";
         ctx.textAlign = "center";
-        ctx.shadowColor = "#0284c7";
-        ctx.shadowBlur = 6;
+        if (this.graphicsQuality !== "low") {
+            ctx.shadowColor = "#0284c7";
+            ctx.shadowBlur = 6;
+        }
         ctx.fillText("🌿 MODO SIGILO (OCULTO)", 0, 36);
+        if (this.graphicsQuality !== "low") ctx.shadowBlur = 0;
 
         ctx.restore();
     }

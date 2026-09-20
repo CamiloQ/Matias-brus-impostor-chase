@@ -171,17 +171,26 @@ class TestVenusAndZombieSwarm(unittest.TestCase):
         }
         self.room.dead_bodies = [body]
 
-        # Case 1: All plants are currently digesting (no idle plants available)
+        # Case 1: No plants exist in the room -> gracefully release
+        self.room.carnivorous_plants = []
+        cat.tick_swarm(0.1, self.room.dead_bodies, self.room.carnivorous_plants)
+        self.assertIsNone(body["carrier_cat_id"])
+        self.assertIsNone(cat.hauling_body_id)
+        self.assertEqual(cat.state, "roaming")
+
+        # Case 2: Plant exists but is busy digesting -> cat retains body and waits
+        cat.hauling_body_id = "body_edge"
+        cat.state = "hauling_body"
+        body["carrier_cat_id"] = cat.id
         digesting_plant = CarnivorousPlant("busy_plant", 520.0, 500.0, is_pot=True)
         digesting_plant.state = "digesting"
         digesting_plant.digestion_timer = 20.0
         self.room.carnivorous_plants = [digesting_plant]
 
         cat.tick_swarm(0.1, self.room.dead_bodies, self.room.carnivorous_plants)
-        # Should gracefully release the body lock
-        self.assertIsNone(body["carrier_cat_id"])
-        self.assertIsNone(cat.hauling_body_id)
-        self.assertEqual(cat.state, "roaming")
+        self.assertEqual(cat.hauling_body_id, "body_edge")
+        self.assertEqual(body["carrier_cat_id"], cat.id)
+        self.assertEqual(cat.state, "hauling_body")
 
 
 

@@ -136,9 +136,12 @@ async def broadcast_to_room(room_id, data_dict, exclude_writer=None):
     room = ROOMS.get(room_id)
     if not room:
         return
-    for w, info in list(CONNECTIONS.items()):
-        if info.get("room_id") == room_id and w != exclude_writer:
-            await send_json(w, data_dict)
+    writers = [
+        w for w, info in list(CONNECTIONS.items())
+        if info.get("room_id") == room_id and w != exclude_writer
+    ]
+    if writers:
+        await asyncio.gather(*[send_json(w, data_dict) for w in writers], return_exceptions=True)
 
 
 async def handle_ws_message(writer, msg_str):
@@ -823,14 +826,23 @@ async def game_tick_loop():
             except Exception as e:
                 print(f"Error ticking room {room_id}: {e}")
 
-            for w, info in list(CONNECTIONS.items()):
-                if info.get("room_id") == room_id:
-                    p_id = info.get("player_id")
+            room_conns = [
+                (w, info.get("player_id"))
+                for w, info in list(CONNECTIONS.items())
+                if info.get("room_id") == room_id
+            ]
+            if room_conns:
+                async def _send_client(writer, player_id):
                     try:
-                        snapshot = room.get_snapshot_for_player(p_id)
-                        await send_json(w, snapshot)
-                    except Exception as e:
-                        print(f"Error sending snapshot to {p_id}: {e}")
+                        snapshot = room.get_snapshot_for_player(player_id)
+                        await asyncio.wait_for(send_json(writer, snapshot), timeout=0.035)
+                    except Exception:
+                        pass
+
+                await asyncio.gather(
+                    *[_send_client(w, pid) for w, pid in room_conns],
+                    return_exceptions=True
+                )
 
         elapsed = time.time() - start_time
         sleep_time = max(0.001, dt - elapsed)

@@ -1225,6 +1225,36 @@ class UIManager {
     }
 
     updateActionButtons(state) {
+        // Manage Downed Status Banner for spectating fallen player
+        const myBody = window.gameEngine && window.gameEngine.deadBodies && window.gameEngine.deadBodies.find(b => b.victim_id === (window.gameEngine.myPlayerId || (window.network && window.network.playerId)));
+        const downedBanner = document.getElementById("downed-status-banner");
+        if (!state.alive && myBody) {
+            let msg = "⚠️ ESTÁS DERRIBADO: Esperando auxilio de un compañero...";
+            let col = "#facc15";
+            let border = "#facc15";
+            if (myBody.is_trapped_in_plant) {
+                msg = "🌺 ¡ATRAPADO EN LA PLANTA VENUS! Siendo digerido...";
+                col = "#d8b4fe";
+                border = "#c084fc";
+            } else if (myBody.carrier_cat_id) {
+                msg = "🐱 ¡UN GATO ZOMBI ARRASTRA TU CUERPO A LA MACETA DE VENUS!";
+                col = "#f87171";
+                border = "#ef4444";
+            } else if (myBody.revive_boosted) {
+                msg = `💚 ¡UN COMPAÑERO TE ESTÁ REANIMANDO! (${Math.ceil(myBody.revive_timer)}s)`;
+                col = "#4ade80";
+                border = "#22c55e";
+            }
+            if (downedBanner) {
+                downedBanner.textContent = msg;
+                downedBanner.style.color = col;
+                downedBanner.style.borderColor = border;
+                downedBanner.classList.remove("hidden");
+            }
+        } else {
+            if (downedBanner) downedBanner.classList.add("hidden");
+        }
+
         if (!state.alive) {
             // Dead player (Ghost)
             this.btnUse.disabled = true;

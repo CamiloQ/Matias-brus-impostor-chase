@@ -1192,10 +1192,10 @@ canvas#gameCanvas {
     .game-logo h1 { font-size: 1.6rem; }
     .sub-logo { font-size: 1rem; }
 
-    /* Mobile Ergonomic Action Controls */
+    /* Mobile Ergonomic Action Controls - Raised higher for browser nav clearance */
     #action-controls {
-        bottom: max(16px, env(safe-area-inset-bottom));
-        right: max(14px, env(safe-area-inset-right));
+        bottom: max(60px, calc(env(safe-area-inset-bottom) + 40px));
+        right: max(16px, env(safe-area-inset-right));
         grid-template-columns: repeat(2, 62px);
         gap: 10px;
     }
@@ -1336,6 +1336,29 @@ canvas#gameCanvas {
     }
 }
 
+/* Downed Player Live Status Banner */
+.downed-banner {
+    position: fixed;
+    top: max(56px, calc(env(safe-area-inset-top) + 48px));
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.92);
+    border: 2px solid #facc15;
+    color: #facc15;
+    font-family: var(--font-heading);
+    font-size: 0.88rem;
+    font-weight: 700;
+    padding: 8px 18px;
+    border-radius: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    z-index: 100;
+    pointer-events: none;
+    letter-spacing: 0.5px;
+    text-align: center;
+    max-width: 90vw;
+    animation: pulseToast 2s infinite ease-in-out;
+}
+
 /* Connection status toast — shown while the client is trying to reconnect
    after a dropped WebSocket (see network.js attemptReconnect). Kept as its
    own class (not reusing orientation-toast's color) so the two never look
@@ -1374,8 +1397,8 @@ canvas#gameCanvas {
     }
     #action-controls {
         position: fixed;
-        bottom: max(6px, env(safe-area-inset-bottom));
-        right: max(6px, env(safe-area-inset-right));
+        bottom: max(28px, calc(env(safe-area-inset-bottom) + 16px));
+        right: max(14px, env(safe-area-inset-right));
         grid-template-columns: repeat(3, 48px);
         gap: 6px;
         z-index: 50;

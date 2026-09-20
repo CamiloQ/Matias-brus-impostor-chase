@@ -550,7 +550,7 @@ class ZombieCat:
                 self.state = "roaming"
             return
 
-        # 1. If currently hauling a body, navigate towards the nearest idle CarnivorousPlant
+        # 1. If currently hauling a body, navigate towards the nearest CarnivorousPlant
         if self.hauling_body_id:
             hauled_body = next(
                 (b for b in dead_bodies if isinstance(b, dict) and b.get("id") == self.hauling_body_id and not b.get("is_trapped_in_plant")),
@@ -562,10 +562,14 @@ class ZombieCat:
             else:
                 idle_plants = [p for p in carnivorous_plants if p.alive and getattr(p, "state", "idle") == "idle"]
                 target_plant = min(idle_plants, key=lambda p: math.hypot(self.x - p.x, self.y - p.y)) if idle_plants else None
-                
+                if not target_plant and carnivorous_plants:
+                    alive_plants = [p for p in carnivorous_plants if p.alive]
+                    target_plant = min(alive_plants, key=lambda p: math.hypot(self.x - p.x, self.y - p.y)) if alive_plants else None
+
                 if target_plant:
                     dist_to_plant = math.hypot(self.x - target_plant.x, self.y - target_plant.y)
-                    if dist_to_plant < target_plant.radius + 15.0:
+                    plant_state = getattr(target_plant, "state", "idle")
+                    if plant_state == "idle" and dist_to_plant < target_plant.radius + 18.0:
                         # Feed the body into the Venus Flytrap!
                         if target_plant.trap_body(hauled_body):
                             self.hauling_body_id = None
@@ -574,18 +578,34 @@ class ZombieCat:
                             hauled_body["carrier_cat_id"] = None
                             self.hauling_body_id = None
                             self.state = "roaming"
+                    elif plant_state == "digesting" and dist_to_plant < target_plant.radius + 28.0:
+                        # Plant is busy digesting; hold body persistently nearby until plant is ready
+                        hauled_body["carrier_cat_id"] = self.id
+                        self.state = "hauling_body"
                     else:
                         angle = math.atan2(target_plant.y - self.y, target_plant.x - self.x)
                         haul_speed = 115.0  # Slightly slower while dragging
-                        new_x = self.x + math.cos(angle) * haul_speed * dt
-                        new_y = self.y + math.sin(angle) * haul_speed * dt
-                        self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
+                        step = haul_speed * dt
+                        new_x = self.x + math.cos(angle) * step
+                        new_y = self.y + math.sin(angle) * step
+                        cx, cy = resolve_obstacle_collision(new_x, new_y, self.radius)
+                        if math.hypot(cx - self.x, cy - self.y) < 0.25 * step:
+                            for offset in [math.pi / 4, -math.pi / 4, math.pi / 2, -math.pi / 2]:
+                                alt_a = angle + offset
+                                alt_nx = self.x + math.cos(alt_a) * step
+                                alt_ny = self.y + math.sin(alt_a) * step
+                                alt_cx, alt_cy = resolve_obstacle_collision(alt_nx, alt_ny, self.radius)
+                                if math.hypot(alt_cx - self.x, alt_cy - self.y) > 0.5 * step:
+                                    cx, cy, angle = alt_cx, alt_cy, alt_a
+                                    break
+                        self.x, self.y = cx, cy
                         # Drag body physically behind cat
                         drag_dist = 22.0
                         hauled_body["x"] = round(self.x - math.cos(angle) * drag_dist, 1)
                         hauled_body["y"] = round(self.y - math.sin(angle) * drag_dist, 1)
                         hauled_body["carrier_cat_id"] = self.id
                 else:
+                    # If no plants exist at all in the room, release body
                     hauled_body["carrier_cat_id"] = None
                     self.hauling_body_id = None
                     self.state = "roaming"
@@ -602,16 +622,27 @@ class ZombieCat:
             self.state = "seeking_body"
 
             dist = math.hypot(self.x - nearest_body["x"], self.y - nearest_body["y"])
-            if dist < 28.0:
-                # Grab the body
+            if dist < 38.0:
+                # Grab the body reliably
                 self.hauling_body_id = nearest_body["id"]
                 nearest_body["carrier_cat_id"] = self.id
                 self.state = "hauling_body"
             else:
                 angle = math.atan2(nearest_body["y"] - self.y, nearest_body["x"] - self.x)
-                new_x = self.x + math.cos(angle) * self.speed * dt
-                new_y = self.y + math.sin(angle) * self.speed * dt
-                self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
+                step = self.speed * dt
+                new_x = self.x + math.cos(angle) * step
+                new_y = self.y + math.sin(angle) * step
+                cx, cy = resolve_obstacle_collision(new_x, new_y, self.radius)
+                if math.hypot(cx - self.x, cy - self.y) < 0.25 * step:
+                    for offset in [math.pi / 4, -math.pi / 4, math.pi / 2, -math.pi / 2]:
+                        alt_a = angle + offset
+                        alt_nx = self.x + math.cos(alt_a) * step
+                        alt_ny = self.y + math.sin(alt_a) * step
+                        alt_cx, alt_cy = resolve_obstacle_collision(alt_nx, alt_ny, self.radius)
+                        if math.hypot(alt_cx - self.x, alt_cy - self.y) > 0.5 * step:
+                            cx, cy = alt_cx, alt_cy
+                            break
+                self.x, self.y = cx, cy
             return
 
         # 3. Default roaming
@@ -1279,17 +1310,21 @@ class GameRoom:
             if body.get("is_trapped_in_plant"):
                 continue
 
-            revive_rate = 1.0
             helpers_nearby = [
                 c for c in alive_crew
-                if math.hypot(c.x - body["x"], c.y - body["y"]) < 60.0
+                if math.hypot(c.x - body["x"], c.y - body["y"]) < 70.0
             ]
             if helpers_nearby:
-                revive_rate += 2.0 + (len(helpers_nearby) - 1) * 1.0
+                revive_rate = 3.0 + (len(helpers_nearby) - 1) * 1.5
+            else:
+                revive_rate = 0.0
 
             current_timer = body.get("revive_timer", 20.0)
-            new_timer = max(0.0, current_timer - dt * revive_rate)
-            body["revive_timer"] = round(new_timer, 2)
+            if revive_rate > 0.0:
+                new_timer = max(0.0, current_timer - dt * revive_rate)
+                body["revive_timer"] = round(new_timer, 2)
+            else:
+                new_timer = current_timer
             body["revive_boosted"] = len(helpers_nearby) > 0
 
             if new_timer <= 0.0:
@@ -1316,6 +1351,7 @@ class GameRoom:
     def tick(self, dt):
         """Docstring for tick."""
         self.state_timer += dt
+        self._cached_tick_common = None
 
         if self.state == "PLAYING":
             # Update world entities timers first
@@ -1771,21 +1807,26 @@ class GameRoom:
             return False
 
         alive_players = [p for p in self.players.values() if p.alive and p.hp > 0]
-        if not alive_players and len(self.players) > 0:
-            self.state = "GAME_OVER"
-            self.winner = "IMPOSTOR"
-            return True
-
         alive_crewmates = sum(1 for p in alive_players if p.role == "crewmate")
         alive_player_impostors = sum(1 for p in alive_players if p.role == "impostor")
         alive_clones = sum(1 for c in self.clone_impostors if c.alive and c.hp > 0)
         has_initial_impostor = any(p.role == "impostor" for p in self.players.values())
 
-        # 1. Impostor Victory: All crewmates eliminated
+        # 1. Impostor Victory: All crewmates eliminated and all bodies fully consumed / expired
+        active_unconsumed_bodies = [
+            b for b in self.dead_bodies
+            if isinstance(b, dict) and not b.get("is_trapped_in_plant")
+        ]
+        active_digesting_plants = [
+            p for p in self.carnivorous_plants
+            if p.alive and getattr(p, "state", "idle") == "digesting"
+        ]
+
         if len(self.players) > 0 and alive_crewmates == 0:
-            self.state = "GAME_OVER"
-            self.winner = "IMPOSTOR"
-            return True
+            if not active_unconsumed_bodies and not active_digesting_plants:
+                self.state = "GAME_OVER"
+                self.winner = "IMPOSTOR"
+                return True
 
         # 2. Crewmate Victory by Tasks: All assigned tasks completed
         total_tasks = sum(
@@ -1811,25 +1852,46 @@ class GameRoom:
         return False
 
     def get_snapshot_for_player(self, player_id):
-        """Docstring for get_snapshot_for_player."""
+        """Docstring for get_snapshot_for_player with per-tick memoization of shared world entities."""
         player = self.players.get(player_id)
         viewer_role = player.role if player else "ghost"
         is_alive = player.alive if player else False
 
-        total_tasks = max(
-            1,
-            sum(
-                len(p.assigned_tasks)
+        if not hasattr(self, "_cached_tick_common") or self._cached_tick_common is None:
+            total_tasks = max(
+                1,
+                sum(
+                    len(p.assigned_tasks)
+                    for p in self.players.values()
+                    if p.role == "crewmate"
+                ),
+            )
+            completed_tasks = sum(
+                len(p.completed_tasks)
                 for p in self.players.values()
                 if p.role == "crewmate"
-            ),
-        )
-        completed_tasks = sum(
-            len(p.completed_tasks)
-            for p in self.players.values()
-            if p.role == "crewmate"
-        )
-        task_percentage = round((completed_tasks / total_tasks) * 100, 1)
+            )
+            task_percentage = round((completed_tasks / total_tasks) * 100, 1)
+
+            self._cached_tick_common = {
+                "task_bar": task_percentage,
+                "cats": [c.to_dict() for c in self.zombie_cats],
+                "skeleton_cats": [c.to_dict() for c in self.skeleton_cats],
+                "carnivorous_plants": [p.to_dict() for p in self.carnivorous_plants],
+                "orbs": [o.to_dict() for o in self.light_orbs],
+                "invis_buttons": [b.to_dict() for b in self.invis_buttons if b.active],
+                "clones": [cl.to_dict() for cl in self.clone_impostors],
+                "collectibles": [
+                    col.to_dict() for col in self.collectibles if not col.collected
+                ],
+                "bodies": list(self.dead_bodies),
+                "meeting": (
+                    self.meeting if self.state in ("MEETING", "MEETING_RESULT") else None
+                ),
+                "timestamp": time.time(),
+            }
+
+        common = self._cached_tick_common
 
         players_data = []
         for p in self.players.values():
@@ -1846,20 +1908,16 @@ class GameRoom:
             "state": self.state,
             "winner": self.winner,
             "episode": getattr(self, "episode", 1),
-            "task_bar": task_percentage,
+            "task_bar": common["task_bar"],
             "players": players_data,
-            "cats": [c.to_dict() for c in self.zombie_cats],
-            "skeleton_cats": [c.to_dict() for c in self.skeleton_cats],
-            "carnivorous_plants": [p.to_dict() for p in self.carnivorous_plants],
-            "orbs": [o.to_dict() for o in self.light_orbs],
-            "invis_buttons": [b.to_dict() for b in self.invis_buttons if b.active],
-            "clones": [cl.to_dict() for cl in self.clone_impostors],
-            "collectibles": [
-                col.to_dict() for col in self.collectibles if not col.collected
-            ],
-            "bodies": self.dead_bodies,
-            "meeting": (
-                self.meeting if self.state in ("MEETING", "MEETING_RESULT") else None
-            ),
-            "timestamp": time.time(),
+            "cats": common["cats"],
+            "skeleton_cats": common["skeleton_cats"],
+            "carnivorous_plants": common["carnivorous_plants"],
+            "orbs": common["orbs"],
+            "invis_buttons": common["invis_buttons"],
+            "clones": common["clones"],
+            "collectibles": common["collectibles"],
+            "bodies": common["bodies"],
+            "meeting": common["meeting"],
+            "timestamp": common["timestamp"],
         }
