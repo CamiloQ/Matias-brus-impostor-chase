@@ -154,6 +154,36 @@ class TestVenusAndZombieSwarm(unittest.TestCase):
         self.assertGreater(victim.hp, 0)
         self.assertEqual(len(self.room.dead_bodies), 0)
 
+    def test_zombie_cat_releases_body_if_no_idle_plant_or_trap_fails(self):
+        cat = self.room.zombie_cats[0]
+        cat.x, cat.y = 500.0, 500.0
+        cat.hauling_body_id = "body_edge"
+        cat.state = "hauling_body"
+
+        body = {
+            "id": "body_edge",
+            "victim_name": "VictimEdge",
+            "x": 490.0,
+            "y": 490.0,
+            "revive_timer": 15.0,
+            "carrier_cat_id": cat.id,
+            "is_trapped_in_plant": False
+        }
+        self.room.dead_bodies = [body]
+
+        # Case 1: All plants are currently digesting (no idle plants available)
+        digesting_plant = CarnivorousPlant("busy_plant", 520.0, 500.0, is_pot=True)
+        digesting_plant.state = "digesting"
+        digesting_plant.digestion_timer = 20.0
+        self.room.carnivorous_plants = [digesting_plant]
+
+        cat.tick_swarm(0.1, self.room.dead_bodies, self.room.carnivorous_plants)
+        # Should gracefully release the body lock
+        self.assertIsNone(body["carrier_cat_id"])
+        self.assertIsNone(cat.hauling_body_id)
+        self.assertEqual(cat.state, "roaming")
+
+
 
 if __name__ == "__main__":
     unittest.main()

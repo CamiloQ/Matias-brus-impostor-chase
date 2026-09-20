@@ -561,15 +561,19 @@ class ZombieCat:
                 self.state = "roaming"
             else:
                 idle_plants = [p for p in carnivorous_plants if p.alive and getattr(p, "state", "idle") == "idle"]
-                target_plant = min(idle_plants, key=lambda p: math.hypot(self.x - p.x, self.y - p.y)) if idle_plants else (carnivorous_plants[0] if carnivorous_plants else None)
+                target_plant = min(idle_plants, key=lambda p: math.hypot(self.x - p.x, self.y - p.y)) if idle_plants else None
                 
                 if target_plant:
                     dist_to_plant = math.hypot(self.x - target_plant.x, self.y - target_plant.y)
                     if dist_to_plant < target_plant.radius + 15.0:
                         # Feed the body into the Venus Flytrap!
-                        target_plant.trap_body(hauled_body)
-                        self.hauling_body_id = None
-                        self.state = "roaming"
+                        if target_plant.trap_body(hauled_body):
+                            self.hauling_body_id = None
+                            self.state = "roaming"
+                        else:
+                            hauled_body["carrier_cat_id"] = None
+                            self.hauling_body_id = None
+                            self.state = "roaming"
                     else:
                         angle = math.atan2(target_plant.y - self.y, target_plant.x - self.x)
                         haul_speed = 115.0  # Slightly slower while dragging
@@ -581,6 +585,10 @@ class ZombieCat:
                         hauled_body["x"] = round(self.x - math.cos(angle) * drag_dist, 1)
                         hauled_body["y"] = round(self.y - math.sin(angle) * drag_dist, 1)
                         hauled_body["carrier_cat_id"] = self.id
+                else:
+                    hauled_body["carrier_cat_id"] = None
+                    self.hauling_body_id = None
+                    self.state = "roaming"
             return
 
         # 2. If not hauling, check for available free bodies in the room (Swarm Bounty)
