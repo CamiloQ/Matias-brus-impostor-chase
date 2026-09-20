@@ -502,13 +502,13 @@ class CollectibleItem:
 
 
 class ZombieCat:
-    """Child-sized Zombie Cat that roams the station"""
+    """Child-sized Zombie Cat that roams the station and swarms to drag dead bodies to Venus Flytraps"""
 
     def __init__(self, cat_id, x, y):
         """Docstring for __init__."""
         self.id = cat_id
-        self.x = x
-        self.y = y
+        self.x = float(x)
+        self.y = float(y)
         self.vx = 0.0
         self.vy = 0.0
         self.hp = 90
@@ -518,16 +518,96 @@ class ZombieCat:
         self.change_dir_timer = random.uniform(1.0, 3.0)
         self.radius = 18
         self.respawn_timer = 0.0
+        self.state = "roaming"  # "roaming", "seeking_body", "hauling_body", "stunned"
+        self.target_body_id = None
+        self.hauling_body_id = None
+        self.stun_timer = 0.0
 
-    def tick(self, dt):
-        """Docstring for tick."""
+    def take_hit_and_drop_body(self, dead_bodies):
+        """Called when cat is punched or damaged: drops any carried body and stuns for 2 seconds"""
+        self.state = "stunned"
+        self.stun_timer = 2.0
+        if self.hauling_body_id:
+            for b in dead_bodies:
+                if isinstance(b, dict) and b.get("id") == self.hauling_body_id:
+                    b["carrier_cat_id"] = None
+            self.hauling_body_id = None
+        self.target_body_id = None
+
+    def tick_swarm(self, dt, dead_bodies, carnivorous_plants):
+        """Swarm logic: hunt free bodies, drag to nearest idle Venus pot, deliver and feed"""
         if not self.alive:
             self.respawn_timer -= dt
             if self.respawn_timer <= 0:
                 self.alive = True
                 self.hp = self.max_hp
+                self.state = "roaming"
             return
 
+        if self.stun_timer > 0:
+            self.stun_timer -= dt
+            if self.stun_timer <= 0:
+                self.state = "roaming"
+            return
+
+        # 1. If currently hauling a body, navigate towards the nearest idle CarnivorousPlant
+        if self.hauling_body_id:
+            hauled_body = next(
+                (b for b in dead_bodies if isinstance(b, dict) and b.get("id") == self.hauling_body_id and not b.get("is_trapped_in_plant")),
+                None
+            )
+            if not hauled_body:
+                self.hauling_body_id = None
+                self.state = "roaming"
+            else:
+                idle_plants = [p for p in carnivorous_plants if p.alive and getattr(p, "state", "idle") == "idle"]
+                target_plant = min(idle_plants, key=lambda p: math.hypot(self.x - p.x, self.y - p.y)) if idle_plants else (carnivorous_plants[0] if carnivorous_plants else None)
+                
+                if target_plant:
+                    dist_to_plant = math.hypot(self.x - target_plant.x, self.y - target_plant.y)
+                    if dist_to_plant < target_plant.radius + 15.0:
+                        # Feed the body into the Venus Flytrap!
+                        target_plant.trap_body(hauled_body)
+                        self.hauling_body_id = None
+                        self.state = "roaming"
+                    else:
+                        angle = math.atan2(target_plant.y - self.y, target_plant.x - self.x)
+                        haul_speed = 115.0  # Slightly slower while dragging
+                        new_x = self.x + math.cos(angle) * haul_speed * dt
+                        new_y = self.y + math.sin(angle) * haul_speed * dt
+                        self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
+                        # Drag body physically behind cat
+                        drag_dist = 22.0
+                        hauled_body["x"] = round(self.x - math.cos(angle) * drag_dist, 1)
+                        hauled_body["y"] = round(self.y - math.sin(angle) * drag_dist, 1)
+                        hauled_body["carrier_cat_id"] = self.id
+            return
+
+        # 2. If not hauling, check for available free bodies in the room (Swarm Bounty)
+        free_bodies = [
+            b for b in dead_bodies
+            if isinstance(b, dict) and not b.get("is_trapped_in_plant") and not b.get("carrier_cat_id")
+        ]
+        if free_bodies:
+            nearest_body = min(free_bodies, key=lambda b: math.hypot(self.x - b["x"], self.y - b["y"]))
+            self.target_body_id = nearest_body["id"]
+            self.state = "seeking_body"
+
+            dist = math.hypot(self.x - nearest_body["x"], self.y - nearest_body["y"])
+            if dist < 28.0:
+                # Grab the body
+                self.hauling_body_id = nearest_body["id"]
+                nearest_body["carrier_cat_id"] = self.id
+                self.state = "hauling_body"
+            else:
+                angle = math.atan2(nearest_body["y"] - self.y, nearest_body["x"] - self.x)
+                new_x = self.x + math.cos(angle) * self.speed * dt
+                new_y = self.y + math.sin(angle) * self.speed * dt
+                self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
+            return
+
+        # 3. Default roaming
+        self.state = "roaming"
         self.change_dir_timer -= dt
         if self.change_dir_timer <= 0:
             angle = random.uniform(0, math.pi * 2)
@@ -535,9 +615,18 @@ class ZombieCat:
             self.vy = math.sin(angle) * self.speed
             self.change_dir_timer = random.uniform(2.0, 4.5)
 
+        old_x, old_y = self.x, self.y
         new_x = self.x + self.vx * dt
         new_y = self.y + self.vy * dt
         self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
+        if math.hypot(self.x - old_x, self.y - old_y) < 0.1 * self.speed * dt:
+            angle = random.uniform(0, math.pi * 2)
+            self.vx = math.cos(angle) * self.speed
+            self.vy = math.sin(angle) * self.speed
+
+    def tick(self, dt):
+        """Fallback tick method for generic compatibility"""
+        self.tick_swarm(dt, [], [])
 
     def to_dict(self):
         """Docstring for to_dict."""
@@ -548,12 +637,15 @@ class ZombieCat:
             "hp": self.hp,
             "max_hp": self.max_hp,
             "alive": self.alive,
+            "state": self.state,
+            "hauling_body_id": self.hauling_body_id,
+            "stunned": self.stun_timer > 0,
         }
 
 
 
 class SkeletonCat:
-    """Skeleton Cat that dies in exactly 2 hits"""
+    """Skeleton Cat that dies in exactly 2 hits and metamorphoses into a potted Venus Flytrap"""
 
     def __init__(self, cat_id, x, y):
         """Docstring for __init__."""
@@ -606,49 +698,54 @@ class SkeletonCat:
 
 
 class CarnivorousPlant:
-    """Carnivorous Plant spawned when Skeleton Cat dies"""
+    """Venus Flytrap (Dionaea muscipula) in pot (maceta) that devours corpses delivered by zombie cats"""
 
-    def __init__(self, plant_id, x, y):
+    def __init__(self, plant_id, x, y, is_pot=True):
         """Docstring for __init__."""
         self.id = plant_id
         self.x = float(x)
         self.y = float(y)
-        self.radius = 25.0
+        self.radius = 32.0
         self.fed_count = 0
-        self.speed = 80.0
         self.alive = True
+        self.is_pot = bool(is_pot)
+        self.state = "idle"  # "idle" | "snapping" | "digesting"
+        self.digestion_timer = 0.0
+        self.trapped_victim_id = None
+        self.trapped_victim_name = None
+
+    def trap_body(self, body):
+        """Captures a body delivered by a cat, locking it in 25-second digestion"""
+        if self.state != "idle":
+            return False
+        self.state = "digesting"
+        self.digestion_timer = 25.0
+        self.trapped_victim_id = body.get("victim_id")
+        self.trapped_victim_name = body.get("victim_name")
+        body["is_trapped_in_plant"] = True
+        body["plant_id"] = self.id
+        body["carrier_cat_id"] = None
+        return True
 
     def tick(self, dt, dead_bodies):
-        """Docstring for tick."""
+        """Digest body for 25s, then consume and return to idle"""
         if not self.alive:
             return
 
-        # Find nearest body safely
-        nearest_body = None
-        min_dist = float("inf")
-        for body in list(dead_bodies):
-            if not isinstance(body, dict) or "x" not in body or "y" not in body:
-                continue
-            dist = math.hypot(self.x - body["x"], self.y - body["y"])
-            if dist < min_dist:
-                min_dist = dist
-                nearest_body = body
-
-        if nearest_body:
-            if min_dist < self.radius + 16.0:
-                # Eat it safely!
-                if nearest_body in dead_bodies:
-                    dead_bodies.remove(nearest_body)
-                    self.fed_count += 1
-                    self.radius = min(self.radius + 6.0, 55.0)  # Grow slightly
-            else:
-                # Move towards it
-                angle = math.atan2(
-                    nearest_body["y"] - self.y, nearest_body["x"] - self.x
-                )
-                new_x = self.x + math.cos(angle) * self.speed * dt
-                new_y = self.y + math.sin(angle) * self.speed * dt
-                self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
+        if self.state == "digesting":
+            self.digestion_timer -= dt
+            if self.digestion_timer <= 0.0:
+                self.state = "idle"
+                self.digestion_timer = 0.0
+                self.fed_count += 1
+                self.radius = min(self.radius + 3.0, 52.0)
+                # Safely delete the completely digested corpse
+                for b in list(dead_bodies):
+                    if isinstance(b, dict) and b.get("plant_id") == self.id:
+                        if b in dead_bodies:
+                            dead_bodies.remove(b)
+                self.trapped_victim_id = None
+                self.trapped_victim_name = None
 
     def to_dict(self):
         """Docstring for to_dict."""
@@ -659,6 +756,10 @@ class CarnivorousPlant:
             "radius": round(self.radius, 1),
             "fed_count": self.fed_count,
             "alive": self.alive,
+            "is_pot": self.is_pot,
+            "state": self.state,
+            "digestion_timer": round(max(0.0, self.digestion_timer), 1),
+            "trapped_victim_name": self.trapped_victim_name,
         }
 
 
@@ -1012,7 +1113,12 @@ class GameRoom:
             SkeletonCat("skel_4", 400, 800),
             SkeletonCat("skel_5", 2200, 1360),
         ]
-        self.carnivorous_plants = []
+        self.carnivorous_plants = [
+            CarnivorousPlant("venus_hub", 1350, 480, is_pot=True),
+            CarnivorousPlant("venus_reactor", 520, 320, is_pot=True),
+            CarnivorousPlant("venus_elec", 450, 1100, is_pot=True),
+            CarnivorousPlant("venus_nav", 2350, 1100, is_pot=True),
+        ]
         self.zombie_cats = [
             ZombieCat("cat_1", 350, 350),  # Reactor Norte
             ZombieCat("cat_2", 420, 1250),  # Electricidad
@@ -1132,6 +1238,73 @@ class GameRoom:
         player.vx = vx * speed
         player.vy = vy * speed
 
+    def create_dead_body(self, player):
+        """Unified creation of downed dead bodies with 20s revive timer"""
+        body = {
+            "id": f"body_{uuid.uuid4().hex[:6]}",
+            "victim_id": player.id,
+            "victim_name": player.name,
+            "color": player.color,
+            "hat": player.hat,
+            "skin": player.skin,
+            "x": round(player.x, 1),
+            "y": round(player.y, 1),
+            "time": time.time(),
+            "revive_timer": 20.0,
+            "carrier_cat_id": None,
+            "is_trapped_in_plant": False,
+            "plant_id": None,
+            "revive_boosted": False,
+        }
+        self.dead_bodies.append(body)
+        return body
+
+    def tick_dead_bodies(self, dt):
+        """Ticks down revive timers for downed bodies; accelerates 3x when alive crewmates are nearby (<60px); revives player when 0s"""
+        alive_crew = [
+            p for p in self.players.values()
+            if p.alive and p.role == "crewmate" and not p.in_vent
+        ]
+        for body in list(self.dead_bodies):
+            if not isinstance(body, dict):
+                continue
+            if body.get("is_trapped_in_plant"):
+                continue
+
+            revive_rate = 1.0
+            helpers_nearby = [
+                c for c in alive_crew
+                if math.hypot(c.x - body["x"], c.y - body["y"]) < 60.0
+            ]
+            if helpers_nearby:
+                revive_rate += 2.0 + (len(helpers_nearby) - 1) * 1.0
+
+            current_timer = body.get("revive_timer", 20.0)
+            new_timer = max(0.0, current_timer - dt * revive_rate)
+            body["revive_timer"] = round(new_timer, 2)
+            body["revive_boosted"] = len(helpers_nearby) > 0
+
+            if new_timer <= 0.0:
+                victim_id = body.get("victim_id")
+                victim = self.players.get(victim_id)
+                if victim:
+                    victim.alive = True
+                    victim.hp = max(60, int(victim.max_hp * 0.6))
+                    victim.x = body["x"]
+                    victim.y = body["y"]
+                    victim.in_vent = None
+                    victim.invis_timer = 0.0
+
+                carrier_cat_id = body.get("carrier_cat_id")
+                if carrier_cat_id:
+                    for cat in self.zombie_cats:
+                        if cat.id == carrier_cat_id:
+                            cat.hauling_body_id = None
+                            cat.state = "roaming"
+
+                if body in self.dead_bodies:
+                    self.dead_bodies.remove(body)
+
     def tick(self, dt):
         """Docstring for tick."""
         self.state_timer += dt
@@ -1147,13 +1320,15 @@ class GameRoom:
                 btn.tick(dt)
 
             for cat in self.zombie_cats:
-                cat.tick(dt)
+                cat.tick_swarm(dt, self.dead_bodies, self.carnivorous_plants)
 
             for skel in self.skeleton_cats:
                 skel.tick(dt)
 
             for plant in self.carnivorous_plants:
                 plant.tick(dt, self.dead_bodies)
+
+            self.tick_dead_bodies(dt)
 
             all_alive_humans = [
                 p for p in self.players.values() if p.alive and p.invis_timer <= 0
@@ -1238,19 +1413,7 @@ class GameRoom:
             for p in self.players.values():
                 if p.alive and p.hp <= 0:
                     p.alive = False
-                    self.dead_bodies.append(
-                        {
-                            "id": f"body_{uuid.uuid4().hex[:6]}",
-                            "victim_id": p.id,
-                            "victim_name": p.name,
-                            "color": p.color,
-                            "hat": p.hat,
-                            "skin": p.skin,
-                            "x": round(p.x, 1),
-                            "y": round(p.y, 1),
-                            "time": time.time(),
-                        }
-                    )
+                    self.create_dead_body(p)
 
             self.check_game_over()
 
@@ -1270,7 +1433,11 @@ class GameRoom:
         if self.state != "PLAYING":
             return False, "Juego no activo", None
 
-        attacker = self.players.get(attacker_id)
+        if isinstance(attacker_id, Player):
+            attacker = attacker_id
+        else:
+            attacker = self.players.get(attacker_id)
+
         if not attacker or not attacker.alive:
             return False, "No puedes atacar", None
 
@@ -1291,6 +1458,7 @@ class GameRoom:
                 dist = math.hypot(attacker.x - cat.x, attacker.y - cat.y)
                 if dist < ATTACK_RANGE + cat.radius:
                     cat.hp -= damage
+                    cat.take_hit_and_drop_body(self.dead_bodies)
                     if cat.hp <= 0:
                         cat.alive = False
                         cat.respawn_timer = 30.0
@@ -1322,7 +1490,7 @@ class GameRoom:
                         skel.alive = False
                         attacker.score += 250
                         plant_id = f"plant_{uuid.uuid4().hex[:6]}"
-                        self.carnivorous_plants.append(CarnivorousPlant(plant_id, skel.x, skel.y))
+                        self.carnivorous_plants.append(CarnivorousPlant(plant_id, skel.x, skel.y, is_pot=True))
                     hit_info = {
                         "type": "skeleton_hit",
                         "cat_id": skel.id,
@@ -1360,19 +1528,7 @@ class GameRoom:
                     other.hp = max(0, other.hp - damage)
                     if other.hp <= 0:
                         other.alive = False
-                        self.dead_bodies.append(
-                            {
-                                "id": f"body_{uuid.uuid4().hex[:6]}",
-                                "victim_id": other.id,
-                                "victim_name": other.name,
-                                "color": other.color,
-                                "hat": other.hat,
-                                "skin": other.skin,
-                                "x": round(other.x, 1),
-                                "y": round(other.y, 1),
-                                "time": time.time(),
-                            }
-                        )
+                        self.create_dead_body(other)
                         self.check_game_over()
                     hit_info = {
                         "type": "player_hit",
@@ -1414,19 +1570,7 @@ class GameRoom:
         target.hp = 0
         impostor.kill_cooldown = KILL_COOLDOWN
         impostor.kills += 1
-        self.dead_bodies.append(
-            {
-                "id": f"body_{uuid.uuid4().hex[:6]}",
-                "victim_id": target.id,
-                "victim_name": target.name,
-                "color": target.color,
-                "hat": target.hat,
-                "skin": target.skin,
-                "x": round(target.x, 1),
-                "y": round(target.y, 1),
-                "time": time.time(),
-            }
-        )
+        self.create_dead_body(target)
 
         self.check_game_over()
         return True, "Objetivo eliminado"
