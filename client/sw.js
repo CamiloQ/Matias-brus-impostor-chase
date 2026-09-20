@@ -1,5 +1,5 @@
 // Service Worker for Matias & Brus: Impostor Chase
-const CACHE_NAME = 'impostor-chase-v3';
+const CACHE_NAME = 'impostor-chase-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

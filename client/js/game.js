@@ -3134,12 +3134,13 @@ class GameEngine {
             ctx.closePath();
             ctx.fill();
 
-            // 5. Glowing Green Zombie Eyes with Pupil Slits
+            // 5. Glowing Eyes (Red in Aggro / Green in Normal) with Pupil Slits
+            const isAggro = (cat.state === "aggro");
             const eyeGlow = 0.8 + toxicPulse * 0.2;
-            ctx.fillStyle = `rgba(0, 230, 118, ${eyeGlow})`;
+            ctx.fillStyle = isAggro ? `rgba(255, 30, 80, ${eyeGlow})` : `rgba(0, 230, 118, ${eyeGlow})`;
             ctx.beginPath();
-            ctx.arc(-6, -2, 4.5, 0, Math.PI * 2);
-            ctx.arc(6, -2, 4.5, 0, Math.PI * 2);
+            ctx.arc(-6, -2, isAggro ? 5.5 : 4.5, 0, Math.PI * 2);
+            ctx.arc(6, -2, isAggro ? 5.5 : 4.5, 0, Math.PI * 2);
             ctx.fill();
 
             // Pupil Slits
@@ -3157,7 +3158,7 @@ class GameEngine {
             ctx.fill();
 
             // Whiskers
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+            ctx.strokeStyle = isAggro ? "rgba(255, 100, 120, 0.8)" : "rgba(255, 255, 255, 0.6)";
             ctx.lineWidth = 1.2;
             ctx.beginPath();
             ctx.moveTo(-7, 3); ctx.lineTo(-18, 1);
@@ -3169,18 +3170,19 @@ class GameEngine {
             // 6. Overhead Health Bar
             ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
             ctx.fillRect(-18, -28, 36, 6);
-            ctx.fillStyle = "#00e676";
+            ctx.fillStyle = isAggro ? "#ff4757" : "#00e676";
             const maxHp = 90;
             const curHp = Math.max(0, cat.hp || maxHp);
             ctx.fillRect(-18, -28, (curHp / maxHp) * 36, 6);
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+            ctx.strokeStyle = isAggro ? "#ff4757" : "rgba(255, 255, 255, 0.3)";
             ctx.lineWidth = 1;
             ctx.strokeRect(-18, -28, 36, 6);
 
             ctx.font = "bold 9px 'Rajdhani', sans-serif";
-            ctx.fillStyle = "#a8ff78";
+            ctx.fillStyle = isAggro ? "#ff4757" : "#a8ff78";
             ctx.textAlign = "center";
-            ctx.fillText(`🐱 Gato Zombi #${idx + 1}`, 0, -32);
+            const aggroTag = isAggro ? " 💢 ¡FURIA!" : "";
+            ctx.fillText(`🐱 Gato Zombi #${idx + 1}${aggroTag}`, 0, -32);
 
             ctx.restore();
         });

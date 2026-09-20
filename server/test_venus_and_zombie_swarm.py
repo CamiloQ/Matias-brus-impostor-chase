@@ -192,6 +192,81 @@ class TestVenusAndZombieSwarm(unittest.TestCase):
         self.assertEqual(body["carrier_cat_id"], cat.id)
         self.assertEqual(cat.state, "hauling_body")
 
+    def test_skeleton_cats_count_reduced_to_two(self):
+        """Verify skeleton cats are balanced down to exactly 2 to prevent Venus plant overcrowding"""
+        self.assertEqual(len(self.room.skeleton_cats), 2)
+        skel_ids = [s.id for s in self.room.skeleton_cats]
+        self.assertEqual(skel_ids, ["skel_1", "skel_2"])
+
+    def test_zombie_cat_counter_attack_aggro_on_punch(self):
+        """Verify zombie cat fights back aggressively when punched instead of freezing in stun"""
+        self.room.state = "PLAYING"
+        player = self.room.add_player("p_fighter", "Fighter")
+        player.hp = 30
+        cat = self.room.zombie_cats[0]
+        cat.x, cat.y = player.x + 20, player.y + 20
+        cat.hauling_body_id = None
+        cat.alive = True
+        cat.hp = 90
+
+        # Player punches the cat
+        success, msg, hit = self.room.try_punch(player)
+        self.assertTrue(success)
+        self.assertEqual(cat.state, "aggro")
+        self.assertEqual(cat.target_player_id, player.id)
+        self.assertGreater(cat.aggro_timer, 0.0)
+
+        # Clear punch flinch timer
+        cat.stun_timer = 0.0
+
+        # Cat ticks swarm logic and attacks the player (melee range ~28px)
+        initial_player_hp = player.hp
+        cat.tick_swarm(0.1, self.room.dead_bodies, self.room.carnivorous_plants, self.room.players, self.room)
+        # Player took 18 damage from cat's bite/claw!
+        self.assertEqual(player.hp, initial_player_hp - 18)
+        self.assertEqual(cat.attack_cooldown, 1.0)
+
+        # Another attack when cooldown expires kills player and triggers scavenger transition
+        cat.attack_cooldown = 0.0
+        cat.tick_swarm(0.1, self.room.dead_bodies, self.room.carnivorous_plants, self.room.players, self.room)
+        self.assertFalse(player.alive)
+        self.assertEqual(player.hp, 0)
+        # Cat dropped aggro and transitioned to seek the newly created corpse!
+        self.assertEqual(cat.state, "seeking_body")
+        self.assertIsNone(cat.target_player_id)
+        # Body was created in room
+        self.assertTrue(any(b.get("victim_id") == player.id for b in self.room.dead_bodies))
+
+    def test_scavenger_cat_delivers_body_to_venus_pot(self):
+        """Verify cat drags body and feeds it into the closest idle Venus plant pot"""
+        cat = self.room.zombie_cats[0]
+        cat.x, cat.y = 1000.0, 1000.0
+        plant = CarnivorousPlant("feed_venus", 1030.0, 1000.0, is_pot=True)
+        self.room.carnivorous_plants = [plant]
+
+        body = {
+            "id": "body_feed_test",
+            "victim_id": "p_feed",
+            "victim_name": "FeedMe",
+            "x": 990.0,
+            "y": 1000.0,
+            "revive_timer": 20.0,
+            "carrier_cat_id": cat.id,
+            "is_trapped_in_plant": False
+        }
+        self.room.dead_bodies = [body]
+        cat.hauling_body_id = body["id"]
+        cat.state = "hauling_body"
+
+        # Tick cat swarm: within delivery distance (< 60px) to plant
+        cat.tick_swarm(0.1, self.room.dead_bodies, self.room.carnivorous_plants, self.room.players, self.room)
+
+        # Body successfully fed into plant!
+        self.assertTrue(body["is_trapped_in_plant"])
+        self.assertEqual(plant.state, "digesting")
+        self.assertEqual(plant.trapped_victim_id, "p_feed")
+        self.assertIsNone(cat.hauling_body_id)
+        self.assertEqual(cat.state, "roaming")
 
 
 if __name__ == "__main__":

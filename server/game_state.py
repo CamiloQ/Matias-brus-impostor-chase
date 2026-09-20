@@ -502,7 +502,7 @@ class CollectibleItem:
 
 
 class ZombieCat:
-    """Child-sized Zombie Cat that roams the station and swarms to drag dead bodies to Venus Flytraps"""
+    """Child-sized Zombie Cat that roams the station, retaliates against attackers, and swarms to drag dead bodies to Venus Flytraps"""
 
     def __init__(self, cat_id, x, y):
         """Docstring for __init__."""
@@ -515,18 +515,22 @@ class ZombieCat:
         self.max_hp = 90
         self.alive = True
         self.speed = 150
+        self.sprint_speed = 185.0
         self.change_dir_timer = random.uniform(1.0, 3.0)
         self.radius = 18
         self.respawn_timer = 0.0
-        self.state = "roaming"  # "roaming", "seeking_body", "hauling_body", "stunned"
+        self.state = "roaming"  # "roaming", "seeking_body", "hauling_body", "aggro", "stunned"
         self.target_body_id = None
         self.hauling_body_id = None
+        self.target_player_id = None
+        self.aggro_timer = 0.0
+        self.attack_cooldown = 0.0
         self.stun_timer = 0.0
+        self.stuck_detour_angle = 0.0
+        self.stuck_detour_timer = 0.0
 
-    def take_hit_and_drop_body(self, dead_bodies):
-        """Called when cat is punched or damaged: drops any carried body and stuns for 2 seconds"""
-        self.state = "stunned"
-        self.stun_timer = 2.0
+    def take_hit_and_drop_body(self, dead_bodies, attacker_id=None):
+        """Called when cat is punched or damaged: drops carried body and attacks attacker or stuns"""
         if self.hauling_body_id:
             for b in dead_bodies:
                 if isinstance(b, dict) and b.get("id") == self.hauling_body_id:
@@ -534,21 +538,83 @@ class ZombieCat:
             self.hauling_body_id = None
         self.target_body_id = None
 
-    def tick_swarm(self, dt, dead_bodies, carnivorous_plants):
-        """Swarm logic: hunt free bodies, drag to nearest idle Venus pot, deliver and feed"""
+        if attacker_id:
+            # Snap into fierce retaliation against the attacker!
+            self.state = "aggro"
+            self.target_player_id = attacker_id
+            self.aggro_timer = 7.0
+            self.stun_timer = 0.2  # Brief 0.2s hit flinch, not passive 2.0s freeze
+        else:
+            self.state = "stunned"
+            self.stun_timer = 2.0
+            self.target_player_id = None
+            self.aggro_timer = 0.0
+
+    def tick_swarm(self, dt, dead_bodies, carnivorous_plants, players=None, room=None):
+        """Swarm & combat logic: fight attackers, hunt free bodies, drag to nearest idle Venus pot, deliver and feed"""
         if not self.alive:
             self.respawn_timer -= dt
             if self.respawn_timer <= 0:
                 self.alive = True
                 self.hp = self.max_hp
                 self.state = "roaming"
+                self.target_player_id = None
+                self.aggro_timer = 0.0
             return
+
+        if self.attack_cooldown > 0:
+            self.attack_cooldown = max(0.0, self.attack_cooldown - dt)
 
         if self.stun_timer > 0:
             self.stun_timer -= dt
-            if self.stun_timer <= 0:
+            if self.stun_timer <= 0 and self.state == "stunned":
                 self.state = "roaming"
             return
+
+        # 0. Active Combat & Retaliation (Aggro Mode)
+        if self.state == "aggro" and self.target_player_id:
+            self.aggro_timer -= dt
+            target = players.get(self.target_player_id) if players else None
+            if not target or not target.alive or getattr(target, "in_vent", None) or self.aggro_timer <= 0:
+                self.state = "roaming"
+                self.target_player_id = None
+                self.aggro_timer = 0.0
+            else:
+                dx = target.x - self.x
+                dy = target.y - self.y
+                dist = math.hypot(dx, dy)
+                # Melee attack range
+                if dist <= (self.radius + PLAYER_RADIUS + 12):
+                    if self.attack_cooldown <= 0:
+                        self.attack_cooldown = 1.0
+                        target.hp = max(0, target.hp - 18)
+                        if target.hp <= 0:
+                            target.alive = False
+                            if room and hasattr(room, "create_dead_body"):
+                                room.create_dead_body(target)
+                            elif room and hasattr(room, "kill_player"):
+                                room.kill_player(target, killer=None)
+                            self.state = "seeking_body"
+                            self.target_player_id = None
+                            self.aggro_timer = 0.0
+                            return
+                else:
+                    angle = math.atan2(dy, dx)
+                    step = self.sprint_speed * dt
+                    new_x = self.x + math.cos(angle) * step
+                    new_y = self.y + math.sin(angle) * step
+                    cx, cy = resolve_obstacle_collision(new_x, new_y, self.radius)
+                    if math.hypot(cx - self.x, cy - self.y) < 0.25 * step:
+                        for offset in [math.pi / 4, -math.pi / 4, math.pi / 2, -math.pi / 2]:
+                            alt_a = angle + offset
+                            alt_nx = self.x + math.cos(alt_a) * step
+                            alt_ny = self.y + math.sin(alt_a) * step
+                            alt_cx, alt_cy = resolve_obstacle_collision(alt_nx, alt_ny, self.radius)
+                            if math.hypot(alt_cx - self.x, alt_cy - self.y) > 0.5 * step:
+                                cx, cy = alt_cx, alt_cy
+                                break
+                    self.x, self.y = cx, cy
+                return
 
         # 1. If currently hauling a body, navigate towards the nearest CarnivorousPlant
         if self.hauling_body_id:
@@ -569,9 +635,11 @@ class ZombieCat:
                 if target_plant:
                     dist_to_plant = math.hypot(self.x - target_plant.x, self.y - target_plant.y)
                     plant_state = getattr(target_plant, "state", "idle")
-                    if plant_state == "idle" and dist_to_plant < target_plant.radius + 18.0:
+                    if plant_state == "idle" and dist_to_plant < target_plant.radius + 28.0:
                         # Feed the body into the Venus Flytrap!
                         if target_plant.trap_body(hauled_body):
+                            hauled_body["x"] = round(target_plant.x, 1)
+                            hauled_body["y"] = round(target_plant.y, 1)
                             self.hauling_body_id = None
                             self.state = "roaming"
                         else:
@@ -583,21 +651,35 @@ class ZombieCat:
                         hauled_body["carrier_cat_id"] = self.id
                         self.state = "hauling_body"
                     else:
-                        angle = math.atan2(target_plant.y - self.y, target_plant.x - self.x)
+                        base_angle = math.atan2(target_plant.y - self.y, target_plant.x - self.x)
                         haul_speed = 115.0  # Slightly slower while dragging
                         step = haul_speed * dt
+
+                        if self.stuck_detour_timer > 0:
+                            self.stuck_detour_timer -= dt
+                            angle = self.stuck_detour_angle
+                        else:
+                            angle = base_angle
+
                         new_x = self.x + math.cos(angle) * step
                         new_y = self.y + math.sin(angle) * step
                         cx, cy = resolve_obstacle_collision(new_x, new_y, self.radius)
-                        if math.hypot(cx - self.x, cy - self.y) < 0.25 * step:
-                            for offset in [math.pi / 4, -math.pi / 4, math.pi / 2, -math.pi / 2]:
-                                alt_a = angle + offset
+
+                        # If blocked by obstacle, pick a persistent tangent detour angle for 0.75s
+                        if math.hypot(cx - self.x, cy - self.y) < 0.3 * step:
+                            best_a = angle
+                            for offset in [math.pi / 2, -math.pi / 2, math.pi / 3, -math.pi / 3, 2 * math.pi / 3, -2 * math.pi / 3]:
+                                alt_a = base_angle + offset
                                 alt_nx = self.x + math.cos(alt_a) * step
                                 alt_ny = self.y + math.sin(alt_a) * step
                                 alt_cx, alt_cy = resolve_obstacle_collision(alt_nx, alt_ny, self.radius)
                                 if math.hypot(alt_cx - self.x, alt_cy - self.y) > 0.5 * step:
-                                    cx, cy, angle = alt_cx, alt_cy, alt_a
+                                    cx, cy = alt_cx, alt_cy
+                                    best_a = alt_a
                                     break
+                            self.stuck_detour_angle = best_a
+                            self.stuck_detour_timer = 0.75
+
                         self.x, self.y = cx, cy
                         # Drag body physically behind cat
                         drag_dist = 22.0
@@ -622,26 +704,37 @@ class ZombieCat:
             self.state = "seeking_body"
 
             dist = math.hypot(self.x - nearest_body["x"], self.y - nearest_body["y"])
-            if dist < 38.0:
+            if dist < 45.0:
                 # Grab the body reliably
                 self.hauling_body_id = nearest_body["id"]
                 nearest_body["carrier_cat_id"] = self.id
                 self.state = "hauling_body"
             else:
-                angle = math.atan2(nearest_body["y"] - self.y, nearest_body["x"] - self.x)
+                base_angle = math.atan2(nearest_body["y"] - self.y, nearest_body["x"] - self.x)
                 step = self.speed * dt
+
+                if self.stuck_detour_timer > 0:
+                    self.stuck_detour_timer -= dt
+                    angle = self.stuck_detour_angle
+                else:
+                    angle = base_angle
+
                 new_x = self.x + math.cos(angle) * step
                 new_y = self.y + math.sin(angle) * step
                 cx, cy = resolve_obstacle_collision(new_x, new_y, self.radius)
-                if math.hypot(cx - self.x, cy - self.y) < 0.25 * step:
-                    for offset in [math.pi / 4, -math.pi / 4, math.pi / 2, -math.pi / 2]:
-                        alt_a = angle + offset
+                if math.hypot(cx - self.x, cy - self.y) < 0.3 * step:
+                    best_a = angle
+                    for offset in [math.pi / 2, -math.pi / 2, math.pi / 3, -math.pi / 3, 2 * math.pi / 3, -2 * math.pi / 3]:
+                        alt_a = base_angle + offset
                         alt_nx = self.x + math.cos(alt_a) * step
                         alt_ny = self.y + math.sin(alt_a) * step
                         alt_cx, alt_cy = resolve_obstacle_collision(alt_nx, alt_ny, self.radius)
                         if math.hypot(alt_cx - self.x, alt_cy - self.y) > 0.5 * step:
                             cx, cy = alt_cx, alt_cy
+                            best_a = alt_a
                             break
+                    self.stuck_detour_angle = best_a
+                    self.stuck_detour_timer = 0.75
                 self.x, self.y = cx, cy
             return
 
@@ -1148,9 +1241,6 @@ class GameRoom:
         self.skeleton_cats = [
             SkeletonCat("skel_1", 1200, 1000),
             SkeletonCat("skel_2", 800, 1400),
-            SkeletonCat("skel_3", 1800, 1200),
-            SkeletonCat("skel_4", 400, 800),
-            SkeletonCat("skel_5", 2200, 1360),
         ]
         self.carnivorous_plants = [
             CarnivorousPlant("venus_hub", 1350, 480, is_pot=True),
@@ -1364,7 +1454,7 @@ class GameRoom:
                 btn.tick(dt)
 
             for cat in self.zombie_cats:
-                cat.tick_swarm(dt, self.dead_bodies, self.carnivorous_plants)
+                cat.tick_swarm(dt, self.dead_bodies, self.carnivorous_plants, self.players, self)
 
             for skel in self.skeleton_cats:
                 skel.tick(dt)
@@ -1502,7 +1592,7 @@ class GameRoom:
                 dist = math.hypot(attacker.x - cat.x, attacker.y - cat.y)
                 if dist < ATTACK_RANGE + cat.radius:
                     cat.hp -= damage
-                    cat.take_hit_and_drop_body(self.dead_bodies)
+                    cat.take_hit_and_drop_body(self.dead_bodies, attacker_id=attacker.id)
                     if cat.hp <= 0:
                         cat.alive = False
                         cat.respawn_timer = 30.0
@@ -1742,7 +1832,7 @@ class GameRoom:
         if carrier_cat_id:
             for cat in self.zombie_cats:
                 if cat.id == carrier_cat_id:
-                    cat.take_hit_and_drop_body(self.dead_bodies)
+                    cat.take_hit_and_drop_body(self.dead_bodies, attacker_id=player_id)
 
         return True, "¡Reanimando compañero!"
 
