@@ -462,6 +462,11 @@ async def handle_ws_message(writer, msg_str):
                     room_id, {"type": "meeting_started", "meeting": room.meeting}
                 )
 
+    elif msg_type == "boost_revive":
+        if room and room.state == "PLAYING":
+            body_id = data.get("body_id")
+            room.boost_revive(player_id, body_id)
+
     elif msg_type == "vote":
         if room and room.state == "MEETING":
             target_id = data.get("target_id", "skip")

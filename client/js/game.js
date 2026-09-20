@@ -238,8 +238,16 @@ class GameEngine {
                 window.network.sendVent(this.nearbyVent.id);
             }
         } else if (e.code === "KeyR") {
-            if (this.nearbyBody) {
-                window.network.sendReport(true, this.nearbyBody.id);
+            if (this.nearbyBody && this.myRole === "crewmate") {
+                window.network.sendReviveBoost(this.nearbyBody.id);
+                if (window.soundEngine) window.soundEngine.playPentatonicChime(2);
+                this.punchEffects.push({
+                    x: this.nearbyBody.x,
+                    y: this.nearbyBody.y - 18,
+                    text: "⚡ +REANIMANDO!",
+                    color: "#00e676",
+                    time: 0.8
+                });
             }
         } else if (e.code === "KeyM") {
             if (window.uiManager && window.uiManager.btnToggleMap) {
@@ -458,6 +466,7 @@ class GameEngine {
         // 5. Dead body
         this.nearbyBody = null;
         for (let b of this.deadBodies) {
+            if (b.is_trapped_in_plant) continue;
             const dist = Math.hypot(me.renderX - b.x, me.renderY - b.y);
             if (dist <= 90) {
                 this.nearbyBody = b;
@@ -4563,117 +4572,451 @@ class GameEngine {
 
     
     drawSkeletonCats(ctx) {
-        this.skeletonCats.forEach(cat => {
+        const time = Date.now() / 1000;
+        this.skeletonCats.forEach((cat, cIdx) => {
             if (!cat.alive) return;
-            // Draw skeleton cat
+            
             ctx.save();
             ctx.translate(cat.x, cat.y);
-            
-            ctx.fillStyle = "#ecf0f1"; // bone color
-            
-            // Head
+
+            // Ground contact shadow
+            ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+            ctx.beginPath();
+            ctx.ellipse(0, 18, 16, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Ear twitching calculation
+            const twitchSeed = Math.sin(time * 5.0 + cat.x * 0.2 + cIdx);
+            const isTwitching = twitchSeed > 0.45;
+            const earAngleL = isTwitching ? Math.sin(time * 24.0) * 0.25 : 0;
+            const earAngleR = isTwitching ? -Math.sin(time * 24.0 + 1) * 0.25 : 0;
+
+            // Skull
+            ctx.fillStyle = "#f1f2f6";
             ctx.beginPath();
             ctx.arc(0, -10, 12, 0, Math.PI * 2);
             ctx.fill();
-            
-            // Ears
+
+            // Snout / muzzle
             ctx.beginPath();
-            ctx.moveTo(-8, -18); ctx.lineTo(-14, -28); ctx.lineTo(-2, -20);
-            ctx.moveTo(8, -18); ctx.lineTo(14, -28); ctx.lineTo(2, -20);
+            ctx.ellipse(0, -4, 6, 4, 0, 0, Math.PI * 2);
             ctx.fill();
-            
-            // Eyes (empty sockets)
-            ctx.fillStyle = "#2c3e50";
-            ctx.beginPath(); ctx.arc(-4, -12, 3, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(4, -12, 3, 0, Math.PI * 2); ctx.fill();
-            
-            // Body (ribcage)
-            ctx.strokeStyle = "#ecf0f1";
-            ctx.lineWidth = 3;
+
+            // Ears (animated twitching)
+            // Left Ear
+            ctx.save();
+            ctx.translate(-7, -18);
+            ctx.rotate(earAngleL);
+            ctx.beginPath();
+            ctx.moveTo(-5, 0);
+            ctx.lineTo(-8, -12);
+            ctx.lineTo(2, -2);
+            ctx.closePath();
+            ctx.fillStyle = "#f1f2f6";
+            ctx.fill();
+            ctx.fillStyle = "#747d8c";
+            ctx.beginPath();
+            ctx.moveTo(-4, -2); ctx.lineTo(-6, -9); ctx.lineTo(1, -3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Right Ear
+            ctx.save();
+            ctx.translate(7, -18);
+            ctx.rotate(earAngleR);
+            ctx.beginPath();
+            ctx.moveTo(5, 0);
+            ctx.lineTo(8, -12);
+            ctx.lineTo(-2, -2);
+            ctx.closePath();
+            ctx.fillStyle = "#f1f2f6";
+            ctx.fill();
+            ctx.fillStyle = "#747d8c";
+            ctx.beginPath();
+            ctx.moveTo(4, -2); ctx.lineTo(6, -9); ctx.lineTo(-1, -3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Hollow eye sockets with eerie green glowing pinpoints
+            ctx.fillStyle = "#1e272e";
+            ctx.beginPath();
+            ctx.arc(-4.5, -11, 3.5, 0, Math.PI * 2);
+            ctx.arc(4.5, -11, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Glowing soul pinpoints
+            const soulGlow = 0.7 + Math.sin(time * 6.0 + cIdx) * 0.3;
+            ctx.fillStyle = `rgba(46, 213, 115, ${soulGlow})`;
+            ctx.beginPath();
+            ctx.arc(-4.5, -11, 1.3, 0, Math.PI * 2);
+            ctx.arc(4.5, -11, 1.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Spine & Ribcage
+            ctx.strokeStyle = "#f1f2f6";
+            ctx.lineWidth = 3.5;
             ctx.lineCap = "round";
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 15); ctx.stroke(); // spine
-            ctx.beginPath(); ctx.moveTo(-8, 5); ctx.lineTo(8, 5); ctx.stroke(); // ribs
-            ctx.beginPath(); ctx.moveTo(-8, 10); ctx.lineTo(8, 10); ctx.stroke(); 
-            
-            if (cat.hp > 1) {
-                // draw tail
-                ctx.beginPath(); ctx.moveTo(0, 15); ctx.lineTo(10, 20); ctx.lineTo(15, 10); ctx.stroke(); 
-                // draw legs
-                ctx.beginPath(); ctx.moveTo(-5, 15); ctx.lineTo(-5, 22); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(5, 15); ctx.lineTo(5, 22); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, 16);
+            ctx.stroke();
+
+            // Ribs (3 pairs)
+            ctx.lineWidth = 2.5;
+            [-6, 0, 6].forEach((ribY, rIdx) => {
+                const ribWidth = 10 - Math.abs(rIdx - 1) * 2;
+                ctx.beginPath();
+                ctx.moveTo(-ribWidth, 4 + ribY);
+                ctx.quadraticCurveTo(0, 3 + ribY, ribWidth, 4 + ribY);
+                ctx.stroke();
+            });
+
+            // Skeletal Legs
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(-6, 16); ctx.lineTo(-7, 24); // Left leg
+            ctx.moveTo(6, 16); ctx.lineTo(7, 24);   // Right leg
+            ctx.stroke();
+
+            // Vertebral Tail Animation (Waving snake-like bone segments)
+            let tailRootX = 0;
+            let tailRootY = 16;
+            const segments = 5;
+            for (let s = 0; s < segments; s++) {
+                const wave = Math.sin(time * 5.0 - s * 0.6 + cIdx) * (4 + s * 2.5);
+                const nextX = tailRootX + wave * 0.35 + (s * 3);
+                const nextY = tailRootY + 4 + s * 2;
+
+                ctx.strokeStyle = "#f1f2f6";
+                ctx.lineWidth = Math.max(1.5, 3.5 - s * 0.5);
+                ctx.beginPath();
+                ctx.moveTo(tailRootX, tailRootY);
+                ctx.lineTo(nextX, nextY);
+                ctx.stroke();
+
+                // Bone bead node
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.arc(nextX, nextY, Math.max(1.2, 2.8 - s * 0.4), 0, Math.PI * 2);
+                ctx.fill();
+
+                tailRootX = nextX;
+                tailRootY = nextY;
             }
-            
-            // Name / HP bar
-            ctx.fillStyle = "#e74c3c";
-            ctx.fillRect(-12, -36, 24, 4);
-            ctx.fillStyle = "#2ecc71";
-            ctx.fillRect(-12, -36, (cat.hp / cat.max_hp) * 24, 4);
-            
-            ctx.font = "bold 10px 'Rajdhani'";
+
+            // Overhead HP bar
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+            ctx.fillRect(-14, -36, 28, 5);
+            ctx.fillStyle = "#2ed573";
+            const curHp = Math.max(0, cat.hp || 0);
+            const maxHp = cat.max_hp || 2;
+            ctx.fillRect(-14, -36, (curHp / maxHp) * 28, 5);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(-14, -36, 28, 5);
+
+            ctx.font = "bold 10px 'Rajdhani', sans-serif";
             ctx.fillStyle = "#ecf0f1";
             ctx.textAlign = "center";
-            ctx.fillText("Gato Esqueleto", 0, -40);
-            
+            ctx.fillText("💀 Gato Esqueleto", 0, -42);
+
             ctx.restore();
         });
     }
 
     drawCarnivorousPlants(ctx) {
-        this.carnivorousPlants.forEach(plant => {
+        const now = Date.now() / 1000;
+        this.carnivorousPlants.forEach((plant, pIdx) => {
             if (!plant.alive) return;
-            
+
+            const isDigesting = (plant.state === "digesting" || (plant.digestion_timer && plant.digestion_timer > 0));
+            const radius = plant.radius || 32;
+
             ctx.save();
             ctx.translate(plant.x, plant.y);
-            
-            // Stem
-            ctx.fillStyle = "#27ae60";
-            ctx.fillRect(-4, 0, 8, plant.radius);
-            
-            // Head
-            ctx.fillStyle = "#c0392b";
+
+            // 1. Planter Pot (Maceta de Terracota)
+            // Ground shadow
+            ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
             ctx.beginPath();
-            ctx.arc(0, 0, plant.radius, 0, Math.PI, true); // Top half
+            ctx.ellipse(0, 24, 28, 9, 0, 0, Math.PI * 2);
             ctx.fill();
+
+            // Pot Body (Terracotta tapered cylinder)
+            const potGrad = ctx.createLinearGradient(-22, 4, 22, 24);
+            potGrad.addColorStop(0, "#d35400");
+            potGrad.addColorStop(0.3, "#e67e22");
+            potGrad.addColorStop(0.7, "#b84d16");
+            potGrad.addColorStop(1, "#7d310d");
+
+            ctx.fillStyle = potGrad;
             ctx.beginPath();
-            ctx.arc(0, 4, plant.radius, 0, Math.PI, false); // Bottom half
+            ctx.moveTo(-20, 8);
+            ctx.lineTo(20, 8);
+            ctx.lineTo(15, 23);
+            ctx.lineTo(-15, 23);
+            ctx.closePath();
             ctx.fill();
-            
-            // Teeth
-            ctx.fillStyle = "#ecf0f1";
-            for(let i = -plant.radius + 4; i < plant.radius - 4; i += 8) {
+
+            // Pot base shadow trim
+            ctx.fillStyle = "#5c2408";
+            ctx.fillRect(-15, 21, 30, 2);
+
+            // Pot Rim / Collar
+            const rimGrad = ctx.createLinearGradient(-24, 2, 24, 9);
+            rimGrad.addColorStop(0, "#e67e22");
+            rimGrad.addColorStop(0.5, "#f39c12");
+            rimGrad.addColorStop(1, "#a04000");
+            ctx.fillStyle = rimGrad;
+            ctx.beginPath();
+            ctx.ellipse(0, 6, 23, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#782800";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Dark Rich Peat Soil inside Rim
+            ctx.fillStyle = "#2c1b12";
+            ctx.beginPath();
+            ctx.ellipse(0, 5, 19, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Moss patches on soil
+            ctx.fillStyle = "#2e7d32";
+            ctx.beginPath();
+            ctx.arc(-7, 5, 3, 0, Math.PI * 2);
+            ctx.arc(6, 4.5, 2.5, 0, Math.PI * 2);
+            ctx.arc(0, 6, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. Basal Rosette of Winged Leaves (Hojas basales en abanico)
+            const leafAngles = [-2.4, -2.8, -1.8, -1.2, -0.7, -0.3];
+            leafAngles.forEach((ang, lIdx) => {
+                ctx.save();
+                ctx.rotate(ang + Math.sin(now * 1.5 + lIdx) * 0.03);
+                const leafGrad = ctx.createLinearGradient(0, 0, 20, 0);
+                leafGrad.addColorStop(0, "#33691e");
+                leafGrad.addColorStop(0.5, "#558b2f");
+                leafGrad.addColorStop(1, "#7cb342");
+                ctx.fillStyle = leafGrad;
                 ctx.beginPath();
-                ctx.moveTo(i, 0); ctx.lineTo(i+4, 8); ctx.lineTo(i+8, 0);
+                ctx.moveTo(0, 0);
+                ctx.quadraticCurveTo(12, -4, 24, 0);
+                ctx.quadraticCurveTo(12, 4, 0, 0);
                 ctx.fill();
+                // Midrib vein
+                ctx.strokeStyle = "#1b5e20";
+                ctx.lineWidth = 1;
                 ctx.beginPath();
-                ctx.moveTo(i, 4); ctx.lineTo(i+4, -4); ctx.lineTo(i+8, 4);
+                ctx.moveTo(0, 0);
+                ctx.lineTo(22, 0);
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // 3. Central Stalk to Trap Head
+            const sway = Math.sin(now * 2.0 + pIdx) * 2.5;
+            ctx.save();
+            ctx.translate(sway, -6);
+
+            // Stalk
+            ctx.strokeStyle = "#43a047";
+            ctx.lineWidth = 6;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(0, 8);
+            ctx.quadraticCurveTo(sway * 0.5, -6, 0, -16);
+            ctx.stroke();
+
+            // Center hinge position
+            ctx.translate(0, -18);
+
+            // Digestion pulsing or idle breathing
+            const mouthBreath = isDigesting ? (Math.sin(now * 8.0) * 0.05) : (Math.sin(now * 2.5 + pIdx) * 0.08);
+
+            // Angle of opening: idle ~0.48 rad (~55 deg), digesting tightly clamped ~0.04 rad
+            const jawSpread = isDigesting ? (0.04 + mouthBreath) : (0.48 + mouthBreath);
+
+            // 4. Bivalve Lobes (Upper and Lower Lobe)
+            [-1, 1].forEach(side => {
+                ctx.save();
+                ctx.scale(1, side);
+                ctx.rotate(jawSpread);
+
+                // Outer Shell (Vibrant lime green with dark trim)
+                const shellGrad = ctx.createLinearGradient(0, 0, 0, -radius * 0.7);
+                shellGrad.addColorStop(0, "#7cb342");
+                shellGrad.addColorStop(0.7, "#689f38");
+                shellGrad.addColorStop(1, "#33691e");
+
+                ctx.fillStyle = shellGrad;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.bezierCurveTo(-radius * 0.6, -radius * 0.4, -radius * 0.5, -radius * 0.85, 0, -radius * 0.85);
+                ctx.bezierCurveTo(radius * 0.5, -radius * 0.85, radius * 0.6, -radius * 0.4, 0, 0);
                 ctx.fill();
+
+                // Inner Trap Bed (Rich Scarlet Crimson / Flesh Gland)
+                const innerGrad = ctx.createRadialGradient(0, -radius * 0.45, 2, 0, -radius * 0.45, radius * 0.6);
+                innerGrad.addColorStop(0, "#ff3838");
+                innerGrad.addColorStop(0.65, "#c0392b");
+                innerGrad.addColorStop(1, "#800c0c");
+
+                ctx.fillStyle = innerGrad;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.bezierCurveTo(-radius * 0.45, -radius * 0.35, -radius * 0.35, -radius * 0.72, 0, -radius * 0.72);
+                ctx.bezierCurveTo(radius * 0.35, -radius * 0.72, radius * 0.45, -radius * 0.35, 0, 0);
+                ctx.fill();
+
+                // 3 Trigger Hairs (Filamentos sensibles)
+                ctx.strokeStyle = "#4a0000";
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                ctx.moveTo(-6, -radius * 0.4); ctx.lineTo(-9, -radius * 0.55);
+                ctx.moveTo(0, -radius * 0.45); ctx.lineTo(0, -radius * 0.62);
+                ctx.moveTo(6, -radius * 0.4); ctx.lineTo(9, -radius * 0.55);
+                ctx.stroke();
+
+                // Marginal Cilia / Teeth (9 sharp interlocking cilia spines)
+                const teethCount = 9;
+                ctx.fillStyle = "#f5f6fa";
+                ctx.strokeStyle = "#badc58";
+                ctx.lineWidth = 1;
+
+                for (let i = 0; i < teethCount; i++) {
+                    const t = (i + 0.5) / teethCount;
+                    const tx = (t - 0.5) * (radius * 1.05);
+                    const arch = 1 - Math.pow((t - 0.5) * 2, 2);
+                    const ty = -radius * 0.85 + (1 - arch) * (radius * 0.25);
+
+                    const toothLen = 9 + arch * 3;
+                    const toothCurv = (t - 0.5) * 4;
+
+                    ctx.beginPath();
+                    ctx.moveTo(tx - 1.8, ty);
+                    ctx.quadraticCurveTo(tx + toothCurv, ty - toothLen * 0.6, tx + toothCurv * 0.5, ty - toothLen);
+                    ctx.lineTo(tx + 1.8, ty);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            });
+
+            // Central Hinge Nodule
+            ctx.fillStyle = "#33691e";
+            ctx.beginPath();
+            ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Digestion acid bubbles
+            if (isDigesting) {
+                for (let b = 0; b < 4; b++) {
+                    const bubbleY = ((now * 25 + b * 9) % 24);
+                    const bubbleX = Math.sin(now * 4 + b) * 12;
+                    ctx.fillStyle = "rgba(74, 222, 128, 0.75)";
+                    ctx.beginPath();
+                    ctx.arc(bubbleX, -bubbleY, 2.5 + (b % 2), 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
-            
-            // Fed indicator
-            ctx.fillStyle = "#ecf0f1";
-            ctx.font = "bold 12px 'Rajdhani'";
-            ctx.textAlign = "center";
-            ctx.fillText("Masticando: " + plant.fed_count, 0, -plant.radius - 5);
-            
+
+            ctx.restore(); // restore sway
+
+            // 5. Overhead HUD: Digestion Timer & Fed Counter
+            if (isDigesting) {
+                const curTime = Math.max(0, plant.digestion_timer || 0);
+                const progress = Math.min(1, Math.max(0, curTime / 25.0));
+
+                // Progress Bar Container
+                ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+                ctx.beginPath();
+                ctx.roundRect(-35, -radius - 38, 70, 10, 4);
+                ctx.fill();
+                ctx.strokeStyle = "#e74c3c";
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+
+                // Progress Fill
+                const barGrad = ctx.createLinearGradient(-34, 0, 34, 0);
+                barGrad.addColorStop(0, "#e74c3c");
+                barGrad.addColorStop(0.5, "#f39c12");
+                barGrad.addColorStop(1, "#2ecc71");
+                ctx.fillStyle = barGrad;
+                ctx.beginPath();
+                ctx.roundRect(-34, -radius - 37, 68 * progress, 8, 3);
+                ctx.fill();
+
+                // Timer text
+                ctx.font = "bold 11px 'Rajdhani', sans-serif";
+                ctx.fillStyle = "#ff7675";
+                ctx.textAlign = "center";
+                const victim = plant.trapped_victim_name ? ` (${plant.trapped_victim_name})` : "";
+                ctx.fillText(`🍽️ Digiriendo: ${curTime.toFixed(1)}s${victim}`, 0, -radius - 43);
+            } else {
+                ctx.font = "bold 11px 'Rajdhani', sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillStyle = "#2ecc71";
+                const fedText = plant.fed_count > 0 ? ` 💀 x${plant.fed_count}` : "";
+                ctx.fillText(`🪴 Venus Atrapamoscas${fedText}`, 0, -radius - 22);
+            }
+
             ctx.restore();
         });
     }
 
     drawDeadBodies(ctx) {
+        const now = Date.now() / 1000;
+
+        // 1. Draw dragging tether/rope from carrying Zombie Cat to corpse
         this.deadBodies.forEach(b => {
+            if (b.is_trapped_in_plant || !b.carrier_cat_id) return;
+            const carrier = this.zombieCats.find(c => c.id === b.carrier_cat_id && c.alive);
+            if (carrier) {
+                ctx.save();
+                ctx.setLineDash([5, 4]);
+                ctx.strokeStyle = "rgba(255, 71, 87, 0.9)";
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.moveTo(carrier.x, carrier.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.stroke();
+
+                // Struggle / dust particles along tether
+                const midX = (carrier.x + b.x) / 2;
+                const midY = (carrier.y + b.y) / 2;
+                ctx.fillStyle = "rgba(255, 107, 129, 0.7)";
+                ctx.beginPath();
+                ctx.arc(midX + Math.sin(now * 8) * 4, midY + Math.cos(now * 8) * 4, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        });
+
+        // 2. Draw fallen dead bodies on floor
+        this.deadBodies.forEach(b => {
+            if (b.is_trapped_in_plant) return;
+
             ctx.save();
             ctx.translate(b.x, b.y);
 
+            // Blood pool on the floor
             ctx.fillStyle = "rgba(192, 57, 43, 0.75)";
             ctx.beginPath();
             ctx.ellipse(0, 8, 22, 12, 0, 0, Math.PI * 2);
             ctx.fill();
 
+            // Player fallen lower torso
             ctx.fillStyle = b.color?.hex || "#e74c3c";
             ctx.beginPath();
             ctx.arc(0, 0, 16, 0, Math.PI);
             ctx.fill();
 
+            // Exposed white spine bone
             ctx.fillStyle = "#ecf0f1";
             ctx.fillRect(-3, -12, 6, 14);
             ctx.beginPath();
@@ -4681,10 +5024,55 @@ class GameEngine {
             ctx.arc(2, -12, 4, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.font = "bold 11px 'Rajdhani', sans-serif";
-            ctx.fillStyle = "#ff7675";
+            // 3. Circular 20-second Revive Progress Dial HUD
+            const rTime = Math.max(0, b.revive_timer !== undefined ? b.revive_timer : 20.0);
+            const progress = Math.min(1, Math.max(0, 1 - (rTime / 20.0))); // 0.0 -> 1.0
+
+            const dialY = -24;
+            // Dial Background
+            ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+            ctx.beginPath();
+            ctx.arc(0, dialY, 11, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Circular progress arc
+            const ringColor = b.carrier_cat_id ? "#ff4757" : (b.revive_boosted ? "#00e676" : "#2ed573");
+            ctx.strokeStyle = ringColor;
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(0, dialY, 11, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+            ctx.stroke();
+
+            // Heart / Status icon inside dial
+            ctx.font = "bold 9px 'Rajdhani', sans-serif";
+            ctx.fillStyle = ringColor;
             ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(b.carrier_cat_id ? "⚠️" : "💚", 0, dialY);
+            ctx.textBaseline = "alphabetic";
+
+            // Status label overhead
+            ctx.font = "bold 11px 'Rajdhani', sans-serif";
+            if (b.carrier_cat_id) {
+                const pulse = Math.sin(now * 10) > 0 ? "#ff4757" : "#ffa502";
+                ctx.fillStyle = pulse;
+                ctx.fillText(`🚨 ¡GATO ARRASTRANDO!`, 0, dialY - 14);
+            } else if (b.revive_boosted) {
+                ctx.fillStyle = "#00e676";
+                ctx.fillText(`⚡ ¡REANIMANDO! ${rTime.toFixed(1)}s`, 0, dialY - 14);
+            } else {
+                ctx.fillStyle = "#2ed573";
+                ctx.fillText(`💚 Revivir: ${rTime.toFixed(1)}s`, 0, dialY - 14);
+            }
+
+            // Victim name tag
+            ctx.font = "bold 11px 'Rajdhani', sans-serif";
+            ctx.fillStyle = "#ecf0f1";
             ctx.fillText(`Cuerpo de ${b.victim_name}`, 0, 26);
+
             ctx.restore();
         });
     }

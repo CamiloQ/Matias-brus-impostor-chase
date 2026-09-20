@@ -1674,6 +1674,34 @@ class GameRoom:
         }
         return True
 
+    def boost_revive(self, player_id, body_id):
+        """Active revival boost from crewmate interaction"""
+        if self.state != "PLAYING":
+            return False, "Juego no activo"
+        player = self.players.get(player_id)
+        if not player or not player.alive or player.role != "crewmate":
+            return False, "Solo tripulantes vivos pueden reanimar"
+        body = next((b for b in self.dead_bodies if isinstance(b, dict) and b.get("id") == body_id), None)
+        if not body or body.get("is_trapped_in_plant"):
+            return False, "Cuerpo no disponible"
+
+        dist = math.hypot(player.x - body["x"], player.y - body["y"])
+        if dist > 85.0:
+            return False, "Demasiado lejos del cuerpo"
+
+        # Apply instant 1.5s boost to revive timer
+        body["revive_timer"] = max(0.0, body.get("revive_timer", 20.0) - 1.5)
+        body["revive_boosted"] = True
+
+        # If a cat was dragging the body, force it to drop!
+        carrier_cat_id = body.get("carrier_cat_id")
+        if carrier_cat_id:
+            for cat in self.zombie_cats:
+                if cat.id == carrier_cat_id:
+                    cat.take_hit_and_drop_body(self.dead_bodies)
+
+        return True, "¡Reanimando compañero!"
+
     def cast_vote(self, voter_id, target_id):
         """Docstring for cast_vote."""
         if self.state != "MEETING":

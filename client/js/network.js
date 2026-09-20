@@ -172,6 +172,10 @@ class NetworkClient {
         this.send({ type: "report", is_body: isBody, body_id: bodyId });
     }
 
+    sendReviveBoost(bodyId) {
+        this.send({ type: "boost_revive", body_id: bodyId });
+    }
+
     sendVote(targetId) {
         this.send({ type: "vote", target_id: targetId });
     }

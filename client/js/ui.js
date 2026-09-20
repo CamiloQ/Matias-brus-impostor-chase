@@ -556,10 +556,18 @@ class UIManager {
 
         bindActionTap(this.btnReport, () => {
             this.vibrate([80, 40, 80]);
-            window.soundEngine.playClick();
             if (window.gameEngine.nearbyBody) {
-                window.soundEngine.playAlarm();
-                window.network.sendReport(true, window.gameEngine.nearbyBody.id);
+                if (window.soundEngine) window.soundEngine.playPentatonicChime(2);
+                window.network.sendReviveBoost(window.gameEngine.nearbyBody.id);
+                if (window.gameEngine.punchEffects) {
+                    window.gameEngine.punchEffects.push({
+                        x: window.gameEngine.nearbyBody.x,
+                        y: window.gameEngine.nearbyBody.y - 18,
+                        text: "⚡ +REANIMANDO!",
+                        color: "#00e676",
+                        time: 0.8
+                    });
+                }
             }
         });
 
@@ -1258,7 +1266,7 @@ class UIManager {
             this.btnUse.querySelector(".btn-text").textContent = "USAR";
         }
 
-        this.btnReport.disabled = !state.body;
+        this.btnReport.disabled = !state.body || state.role !== "crewmate";
 
         if (state.role === "impostor") {
             this.btnKill.classList.remove("hidden");
