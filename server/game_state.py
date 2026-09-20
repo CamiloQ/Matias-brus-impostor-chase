@@ -558,15 +558,16 @@ class SkeletonCat:
     def __init__(self, cat_id, x, y):
         """Docstring for __init__."""
         self.id = cat_id
-        self.x = x
-        self.y = y
-        self.vx = 0.0
-        self.vy = 0.0
+        self.x = float(x)
+        self.y = float(y)
+        self.speed = 130
+        angle = random.uniform(0, math.pi * 2)
+        self.vx = math.cos(angle) * self.speed
+        self.vy = math.sin(angle) * self.speed
         self.hp = 2
         self.max_hp = 2
         self.alive = True
-        self.speed = 130
-        self.change_dir_timer = random.uniform(1.0, 3.0)
+        self.change_dir_timer = random.uniform(1.5, 3.5)
         self.radius = 18
 
     def tick(self, dt):
@@ -581,9 +582,16 @@ class SkeletonCat:
             self.vy = math.sin(angle) * self.speed
             self.change_dir_timer = random.uniform(2.0, 4.5)
 
+        old_x, old_y = self.x, self.y
         new_x = self.x + self.vx * dt
         new_y = self.y + self.vy * dt
         self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
+
+        # If blocked by obstacle, pick a new direction immediately so it never gets stuck
+        if math.hypot(self.x - old_x, self.y - old_y) < 0.1 * self.speed * dt:
+            angle = random.uniform(0, math.pi * 2)
+            self.vx = math.cos(angle) * self.speed
+            self.vy = math.sin(angle) * self.speed
 
     def to_dict(self):
         """Docstring for to_dict."""
@@ -596,46 +604,52 @@ class SkeletonCat:
             "alive": self.alive,
         }
 
+
 class CarnivorousPlant:
     """Carnivorous Plant spawned when Skeleton Cat dies"""
 
     def __init__(self, plant_id, x, y):
         """Docstring for __init__."""
         self.id = plant_id
-        self.x = x
-        self.y = y
-        self.radius = 25
+        self.x = float(x)
+        self.y = float(y)
+        self.radius = 25.0
         self.fed_count = 0
-        self.speed = 70
+        self.speed = 80.0
         self.alive = True
 
     def tick(self, dt, dead_bodies):
         """Docstring for tick."""
         if not self.alive:
             return
-        
-        # Find nearest body
+
+        # Find nearest body safely
         nearest_body = None
-        min_dist = float('inf')
-        for body in dead_bodies:
-            dist = math.hypot(self.x - body['x'], self.y - body['y'])
+        min_dist = float("inf")
+        for body in list(dead_bodies):
+            if not isinstance(body, dict) or "x" not in body or "y" not in body:
+                continue
+            dist = math.hypot(self.x - body["x"], self.y - body["y"])
             if dist < min_dist:
                 min_dist = dist
                 nearest_body = body
-                
+
         if nearest_body:
-            if min_dist < self.radius + 10:
-                # Eat it!
-                dead_bodies.remove(nearest_body)
-                self.fed_count += 1
-                self.radius = min(self.radius + 5, 50) # Grow a bit
+            if min_dist < self.radius + 16.0:
+                # Eat it safely!
+                if nearest_body in dead_bodies:
+                    dead_bodies.remove(nearest_body)
+                    self.fed_count += 1
+                    self.radius = min(self.radius + 6.0, 55.0)  # Grow slightly
             else:
                 # Move towards it
-                angle = math.atan2(nearest_body['y'] - self.y, nearest_body['x'] - self.x)
+                angle = math.atan2(
+                    nearest_body["y"] - self.y, nearest_body["x"] - self.x
+                )
                 new_x = self.x + math.cos(angle) * self.speed * dt
                 new_y = self.y + math.sin(angle) * self.speed * dt
                 self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
-                
+
     def to_dict(self):
         """Docstring for to_dict."""
         return {
@@ -968,14 +982,6 @@ class GameRoom:
         self.clone_impostors = []
         self.collectibles = []
         self.invis_buttons = []
-        self.skeleton_cats = [
-            SkeletonCat("skel_1", 1200, 1000),
-            SkeletonCat("skel_2", 800, 1400),
-            SkeletonCat("skel_3", 1800, 1200),
-            SkeletonCat("skel_4", 400, 800),
-            SkeletonCat("skel_5", 2200, 1400),
-        ]
-        self.carnivorous_plants = []
         self.state = "LOBBY"
         self.state_timer = 0.0
         self.winner = None
@@ -1004,7 +1010,7 @@ class GameRoom:
             SkeletonCat("skel_2", 800, 1400),
             SkeletonCat("skel_3", 1800, 1200),
             SkeletonCat("skel_4", 400, 800),
-            SkeletonCat("skel_5", 2200, 1400),
+            SkeletonCat("skel_5", 2200, 1360),
         ]
         self.carnivorous_plants = []
         self.zombie_cats = [
@@ -1111,14 +1117,6 @@ class GameRoom:
         self.light_orbs = []
         self.clone_impostors = []
         self.invis_buttons = []
-        self.skeleton_cats = [
-            SkeletonCat("skel_1", 1200, 1000),
-            SkeletonCat("skel_2", 800, 1400),
-            SkeletonCat("skel_3", 1800, 1200),
-            SkeletonCat("skel_4", 400, 800),
-            SkeletonCat("skel_5", 2200, 1400),
-        ]
-        self.carnivorous_plants = []
         self.init_world_entities()
         self.state = "PLAYING"
         self.state_timer = 0.0
@@ -1150,6 +1148,12 @@ class GameRoom:
 
             for cat in self.zombie_cats:
                 cat.tick(dt)
+
+            for skel in self.skeleton_cats:
+                skel.tick(dt)
+
+            for plant in self.carnivorous_plants:
+                plant.tick(dt, self.dead_bodies)
 
             all_alive_humans = [
                 p for p in self.players.values() if p.alive and p.invis_timer <= 0

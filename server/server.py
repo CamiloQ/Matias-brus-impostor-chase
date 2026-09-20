@@ -788,13 +788,19 @@ async def game_tick_loop():
             if not room.players:
                 continue
 
-            room.tick(dt)
+            try:
+                room.tick(dt)
+            except Exception as e:
+                print(f"Error ticking room {room_id}: {e}")
 
             for w, info in list(CONNECTIONS.items()):
                 if info.get("room_id") == room_id:
                     p_id = info.get("player_id")
-                    snapshot = room.get_snapshot_for_player(p_id)
-                    await send_json(w, snapshot)
+                    try:
+                        snapshot = room.get_snapshot_for_player(p_id)
+                        await send_json(w, snapshot)
+                    except Exception as e:
+                        print(f"Error sending snapshot to {p_id}: {e}")
 
         elapsed = time.time() - start_time
         sleep_time = max(0.001, dt - elapsed)
