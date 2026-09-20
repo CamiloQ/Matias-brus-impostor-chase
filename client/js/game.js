@@ -755,10 +755,10 @@ class GameEngine {
         this.players.forEach(p => {
             if (p.id === this.myPlayerId) return;
             if (!p.alive) return;
-            // If in vent, only impostors can see
-            if (p.in_vent && this.myRole !== "impostor") return;
-            // If invisible, opponents cannot see
-            if (p.is_invisible && me.alive) return;
+            // If in vent, only impostors can see (except themselves or dead players)
+            if (p.in_vent && this.myRole !== "impostor" && p.id !== this.myPlayerId && me && me.alive) return;
+            // If invisible, opponents cannot see (except themselves or dead players)
+            if (p.is_invisible && p.id !== this.myPlayerId && me && me.alive) return;
 
             // Screen position of player in CSS pixels
             const sx = (p.renderX - this.camera.x) + centerX;
@@ -920,7 +920,7 @@ class GameEngine {
         // Draw other players
         this.players.forEach(p => {
             if (p.id === this.myPlayerId) return;
-            if (!p.alive || p.in_vent || (p.is_invisible && me.alive)) return;
+            if (!p.alive || (p.in_vent && this.myRole !== "impostor") || (p.is_invisible && me && me.alive)) return;
 
             const px = offX + p.renderX * scaleX;
             const py = offY + p.renderY * scaleY;

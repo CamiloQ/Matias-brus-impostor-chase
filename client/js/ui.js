@@ -749,7 +749,7 @@ class UIManager {
 
         window.network.on("joined_room", (data) => {
             this.lobbyScreen.classList.add("hidden");
-            const isPlaying = (data.room_state === "PLAYING" || window.gameEngine.gameState === "PLAYING");
+            const isPlaying = (data.room_state !== "LOBBY" && data.room_state !== "GAME_OVER" || window.gameEngine.gameState !== "LOBBY" && window.gameEngine.gameState !== "GAME_OVER");
             if (!isPlaying) {
                 this.waitingScreen.classList.remove("hidden");
             } else {

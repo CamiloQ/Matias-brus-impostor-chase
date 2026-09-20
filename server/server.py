@@ -208,11 +208,21 @@ async def handle_ws_message(writer, msg_str):
         if not player:
             # Check if there is an existing disconnected player with the same name in the room to reclaim!
             disconnected_player = next(
-                (p for p in room.players.values() if not getattr(p, "connected", True) and p.name.strip().lower() == player_name.strip().lower()),
+                (p for p in room.players.values() if p.name.strip().lower() == player_name.strip().lower()),
                 None
             )
             if disconnected_player:
                 player = disconnected_player
+                # Close any previous stale socket for this player to prevent conflict
+                for old_w, old_info in list(CONNECTIONS.items()):
+                    if old_info.get("player_id") == player.id and old_w != writer:
+                        try:
+                            old_w.close()
+                            await old_w.wait_closed()
+                        except Exception:
+                            pass
+                        CONNECTIONS.pop(old_w, None)
+
                 player.connected = True
                 conn_info["player_id"] = player.id
                 player_id = player.id
