@@ -206,20 +206,31 @@ async def handle_ws_message(writer, msg_str):
             player_id = reconnect_id
 
         if not player:
-            if len(room.players) >= 12:
-                await send_json(
-                    writer, {"type": "error", "message": "La sala está llena (máx 12)"}
-                )
-                return
-
-            # Name collision handling: Disambiguate if name already exists
-            existing_names = [p.name.strip().lower() for p in room.players.values()]
-            if player_name.lower() in existing_names:
-                player_name = f"{player_name} {len(room.players) + 1}"
-
-            player = room.add_player(
-                player_id, player_name, gender=player_gender, character=player_character
+            # Check if there is an existing disconnected player with the same name in the room to reclaim!
+            disconnected_player = next(
+                (p for p in room.players.values() if not getattr(p, "connected", True) and p.name.strip().lower() == player_name.strip().lower()),
+                None
             )
+            if disconnected_player:
+                player = disconnected_player
+                player.connected = True
+                conn_info["player_id"] = player.id
+                player_id = player.id
+            else:
+                if len(room.players) >= 12:
+                    await send_json(
+                        writer, {"type": "error", "message": "La sala está llena (máx 12)"}
+                    )
+                    return
+
+                # Name collision handling: Disambiguate if name already exists
+                existing_names = [p.name.strip().lower() for p in room.players.values()]
+                if player_name.lower() in existing_names:
+                    player_name = f"{player_name} {len(room.players) + 1}"
+
+                player = room.add_player(
+                    player_id, player_name, gender=player_gender, character=player_character
+                )
 
         conn_info["room_id"] = target_room_id
 
@@ -366,6 +377,10 @@ async def handle_ws_message(writer, msg_str):
                 p.scored_tasks = set()
                 p.current_task = None
                 p.in_vent = None
+                p.invis_timer = 0.0
+                p.disguise = None
+                p.disguise_timer = 0.0
+                p.ghost_button_cooldown = 0.0
             await broadcast_to_room(
                 room_id,
                 {

@@ -1653,21 +1653,22 @@ class GameRoom:
 
         players_data = []
         for p in self.players.values():
-            if (
-                p.in_vent
-                and p.id != player_id
-                and viewer_role != "impostor"
-                and is_alive
-            ):
-                continue
-            # Invisible player is hidden from other alive players
-            if (
-                p.invis_timer > 0
-                and p.id != player_id
-                and is_alive
-                and viewer_role != "ghost"
-            ):
-                continue
+            if self.state == "PLAYING":
+                if (
+                    p.in_vent
+                    and p.id != player_id
+                    and viewer_role != "impostor"
+                    and is_alive
+                ):
+                    continue
+                # Invisible player is hidden from other alive players
+                if (
+                    p.invis_timer > 0
+                    and p.id != player_id
+                    and is_alive
+                    and viewer_role != "ghost"
+                ):
+                    continue
             players_data.append(
                 p.to_dict(
                     viewer_role="ghost" if not is_alive else viewer_role,

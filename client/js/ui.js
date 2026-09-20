@@ -115,14 +115,14 @@ class UIManager {
 
         this.autoStartPending = false;
         const urlParams = new URLSearchParams(window.location.search);
-        const roomParam = urlParams.get("room");
+        this.roomParam = urlParams.get("room");
         const playParam = urlParams.get("play");
         if (playParam === "1") {
             this.autoStartPending = true;
         }
         // Si la URL contiene room, pre-rellenar código de sala
-        if (roomParam) {
-            this.inputRoomCode.value = roomParam;
+        if (this.roomParam) {
+            this.inputRoomCode.value = this.roomParam;
             const joinTab = document.querySelector('.tab-btn[data-tab="join"]');
             if (joinTab) joinTab.click();
         }
@@ -421,14 +421,15 @@ class UIManager {
             });
         });
 
-        // Create Room
+        // Create Room / Quick Play
         this.btnCreate.addEventListener("click", async () => {
             this.vibrate(25);
             window.soundEngine.playClick();
             const nick = this.inputNickname.value.trim() || "Matias";
             localStorage.setItem("chase_nickname", nick);
             await this.ensureConnected();
-            window.network.joinRoom("", nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
+            const targetRoom = (this.roomParam || "").trim().toUpperCase();
+            window.network.joinRoom(targetRoom, nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
         });
 
         // Refresh rooms button
@@ -717,7 +718,7 @@ class UIManager {
                 card.innerHTML = `
                     <div class="room-card-info">
                         <div class="room-card-code">🚀 ${sanitizeHTML(r.room_id)}</div>
-                        <div class="room-card-status">${sanitizeHTML(stateLabel)} · ${sanitizeHTML(namesStr)}</div>
+                        <div class="room-card-status">${stateLabel} · ${sanitizeHTML(namesStr)}</div>
                     </div>
                     <div class="room-card-players">👤 ${r.players}/${r.max_players}</div>
                     <button class="room-card-join-btn">UNIRSE</button>
@@ -751,6 +752,12 @@ class UIManager {
             const isPlaying = (data.room_state === "PLAYING" || window.gameEngine.gameState === "PLAYING");
             if (!isPlaying) {
                 this.waitingScreen.classList.remove("hidden");
+            } else {
+                this.waitingScreen.classList.add("hidden");
+                this.topBar.classList.remove("hidden");
+                this.taskChecklist.classList.remove("hidden");
+                this.actionControls.classList.remove("hidden");
+                window.gameEngine.gameState = "PLAYING";
             }
             this.displayRoomCode.textContent = data.room_id;
             this.catalogs = data.catalogs || {};
@@ -771,6 +778,34 @@ class UIManager {
                         window.network.startGame();
                     }
                 }, 800);
+            }
+        });
+
+        window.network.on("player_joined", (data) => {
+            if (data.player) {
+                const existing = window.gameEngine.players.get(data.player.id);
+                if (!existing) {
+                    window.gameEngine.players.set(data.player.id, {
+                        ...data.player,
+                        renderX: data.player.x,
+                        renderY: data.player.y,
+                        targetX: data.player.x,
+                        targetY: data.player.y,
+                        walkAnim: 0
+                    });
+                }
+                if (window.gameEngine.gameState === "LOBBY") {
+                    this.updateWaitingPlayers(Array.from(window.gameEngine.players.values()));
+                }
+            }
+        });
+
+        window.network.on("player_left", (data) => {
+            if (data.player_id) {
+                window.gameEngine.players.delete(data.player_id);
+                if (window.gameEngine.gameState === "LOBBY") {
+                    this.updateWaitingPlayers(Array.from(window.gameEngine.players.values()));
+                }
             }
         });
 

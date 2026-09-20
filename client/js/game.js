@@ -322,6 +322,8 @@ class GameEngine {
                 p.name = pData.name;
                 p.targetX = pData.x;
                 p.targetY = pData.y;
+                if (p.renderX === undefined || isNaN(p.renderX)) p.renderX = pData.x;
+                if (p.renderY === undefined || isNaN(p.renderY)) p.renderY = pData.y;
                 p.vx = pData.vx;
                 p.vy = pData.vy;
                 p.hp = pData.hp;
@@ -535,6 +537,8 @@ class GameEngine {
 
         this.players.forEach(p => {
             if (p.targetX !== undefined) {
+                if (isNaN(p.renderX) || p.renderX === undefined) p.renderX = p.targetX;
+                if (isNaN(p.renderY) || p.renderY === undefined) p.renderY = p.targetY;
                 p.renderX += (p.targetX - p.renderX) * 0.3;
                 p.renderY += (p.targetY - p.renderY) * 0.3;
             }
@@ -3289,8 +3293,9 @@ class GameEngine {
         const me = this.players.get(this.myPlayerId);
 
         this.players.forEach(p => {
-            // 1. In-vent sewer crawling visualization (Paso por dentro de las alcantarillas)
-            if (p.in_vent) {
+            try {
+                // 1. In-vent sewer crawling visualization (Paso por dentro de las alcantarillas)
+                if (p.in_vent) {
                 const canSeeVentPlayer = (p.id === this.myPlayerId) || (this.myRole === "impostor") || (me && !me.alive);
                 if (!canSeeVentPlayer) return;
 
@@ -3913,6 +3918,10 @@ class GameEngine {
             }
 
             ctx.restore();
+            } catch (err) {
+                console.error("Error drawing player", p.id, err);
+                try { ctx.restore(); } catch (e) {}
+            }
         });
     }
 

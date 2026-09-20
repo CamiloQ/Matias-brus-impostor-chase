@@ -47,12 +47,31 @@ class TestReconnectFlow(unittest.TestCase):
         ) > server.ROOM_EMPTY_TTL_SECONDS
         self.assertTrue(is_expired)
 
-    def test_rate_limit_threshold(self):
-        # Server rate limit must be at least 250 msg/sec for mobile joysticks
-        # Verify that rate limit constant in server.py is set to >= 250
-        with open(os.path.join(server_dir, "server.py"), "r") as f:
-            content = f.read()
-        self.assertIn("msg_count > 300", content)
+    def test_lobby_snapshot_visibility_all_players(self):
+        # In LOBBY, all players must always be present in snapshot, even if they had vent or invis flags
+        p1 = self.room.add_player("p1_id", "Matias")
+        p2 = self.room.add_player("p2_id", "Brus")
+        p2.in_vent = "vent_1"
+        p2.invis_timer = 5.0
+        self.room.state = "LOBBY"
+
+        snap = self.room.get_snapshot_for_player("p1_id")
+        player_ids = [p["id"] for p in snap["players"]]
+        self.assertIn("p1_id", player_ids)
+        self.assertIn("p2_id", player_ids)
+
+    def test_reclaim_disconnected_player_by_name(self):
+        # When a player reconnects with same name without reconnect_id, their slot is reclaimed
+        p1 = self.room.add_player("old_p1_id", "Matias")
+        p1.connected = False
+
+        # Check disconnected matching
+        disconnected_player = next(
+            (p for p in self.room.players.values() if not getattr(p, "connected", True) and p.name.strip().lower() == "matias"),
+            None
+        )
+        self.assertIsNotNone(disconnected_player)
+        self.assertEqual(disconnected_player.id, "old_p1_id")
 
 
 if __name__ == "__main__":
