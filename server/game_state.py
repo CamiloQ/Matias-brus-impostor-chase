@@ -551,6 +551,103 @@ class ZombieCat:
         }
 
 
+
+class SkeletonCat:
+    """Skeleton Cat that dies in exactly 2 hits"""
+
+    def __init__(self, cat_id, x, y):
+        """Docstring for __init__."""
+        self.id = cat_id
+        self.x = x
+        self.y = y
+        self.vx = 0.0
+        self.vy = 0.0
+        self.hp = 2
+        self.max_hp = 2
+        self.alive = True
+        self.speed = 130
+        self.change_dir_timer = random.uniform(1.0, 3.0)
+        self.radius = 18
+
+    def tick(self, dt):
+        """Docstring for tick."""
+        if not self.alive:
+            return
+
+        self.change_dir_timer -= dt
+        if self.change_dir_timer <= 0:
+            angle = random.uniform(0, math.pi * 2)
+            self.vx = math.cos(angle) * self.speed
+            self.vy = math.sin(angle) * self.speed
+            self.change_dir_timer = random.uniform(2.0, 4.5)
+
+        new_x = self.x + self.vx * dt
+        new_y = self.y + self.vy * dt
+        self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
+
+    def to_dict(self):
+        """Docstring for to_dict."""
+        return {
+            "id": self.id,
+            "x": round(self.x, 1),
+            "y": round(self.y, 1),
+            "hp": self.hp,
+            "max_hp": self.max_hp,
+            "alive": self.alive,
+        }
+
+class CarnivorousPlant:
+    """Carnivorous Plant spawned when Skeleton Cat dies"""
+
+    def __init__(self, plant_id, x, y):
+        """Docstring for __init__."""
+        self.id = plant_id
+        self.x = x
+        self.y = y
+        self.radius = 25
+        self.fed_count = 0
+        self.speed = 70
+        self.alive = True
+
+    def tick(self, dt, dead_bodies):
+        """Docstring for tick."""
+        if not self.alive:
+            return
+        
+        # Find nearest body
+        nearest_body = None
+        min_dist = float('inf')
+        for body in dead_bodies:
+            dist = math.hypot(self.x - body['x'], self.y - body['y'])
+            if dist < min_dist:
+                min_dist = dist
+                nearest_body = body
+                
+        if nearest_body:
+            if min_dist < self.radius + 10:
+                # Eat it!
+                dead_bodies.remove(nearest_body)
+                self.fed_count += 1
+                self.radius = min(self.radius + 5, 50) # Grow a bit
+            else:
+                # Move towards it
+                angle = math.atan2(nearest_body['y'] - self.y, nearest_body['x'] - self.x)
+                new_x = self.x + math.cos(angle) * self.speed * dt
+                new_y = self.y + math.sin(angle) * self.speed * dt
+                self.x, self.y = resolve_obstacle_collision(new_x, new_y, self.radius)
+                
+    def to_dict(self):
+        """Docstring for to_dict."""
+        return {
+            "id": self.id,
+            "x": round(self.x, 1),
+            "y": round(self.y, 1),
+            "radius": round(self.radius, 1),
+            "fed_count": self.fed_count,
+            "alive": self.alive,
+        }
+
+
 class LightOrb:
     """Floating magic clone orb dropped when a zombie cat dies; shoots out with random impulse and slows down by friction"""
 
@@ -865,10 +962,20 @@ class GameRoom:
         self.id = room_id
         self.players = {}
         self.zombie_cats = []
+        self.skeleton_cats = []
+        self.carnivorous_plants = []
         self.light_orbs = []
         self.clone_impostors = []
         self.collectibles = []
         self.invis_buttons = []
+        self.skeleton_cats = [
+            SkeletonCat("skel_1", 1200, 1000),
+            SkeletonCat("skel_2", 800, 1400),
+            SkeletonCat("skel_3", 1800, 1200),
+            SkeletonCat("skel_4", 400, 800),
+            SkeletonCat("skel_5", 2200, 1400),
+        ]
+        self.carnivorous_plants = []
         self.state = "LOBBY"
         self.state_timer = 0.0
         self.winner = None
@@ -892,6 +999,14 @@ class GameRoom:
     def init_world_entities(self):
         """Docstring for init_world_entities."""
         self.invis_buttons = []
+        self.skeleton_cats = [
+            SkeletonCat("skel_1", 1200, 1000),
+            SkeletonCat("skel_2", 800, 1400),
+            SkeletonCat("skel_3", 1800, 1200),
+            SkeletonCat("skel_4", 400, 800),
+            SkeletonCat("skel_5", 2200, 1400),
+        ]
+        self.carnivorous_plants = []
         self.zombie_cats = [
             ZombieCat("cat_1", 350, 350),  # Reactor Norte
             ZombieCat("cat_2", 420, 1250),  # Electricidad
@@ -996,6 +1111,14 @@ class GameRoom:
         self.light_orbs = []
         self.clone_impostors = []
         self.invis_buttons = []
+        self.skeleton_cats = [
+            SkeletonCat("skel_1", 1200, 1000),
+            SkeletonCat("skel_2", 800, 1400),
+            SkeletonCat("skel_3", 1800, 1200),
+            SkeletonCat("skel_4", 400, 800),
+            SkeletonCat("skel_5", 2200, 1400),
+        ]
+        self.carnivorous_plants = []
         self.init_world_entities()
         self.state = "PLAYING"
         self.state_timer = 0.0
@@ -1183,6 +1306,28 @@ class GameRoom:
                         "weapon": attacker.weapon,
                     }
                     return True, "¡Vence al zombi!", hit_info
+
+        
+        # 1.5 Check hitting Skeleton Cats
+        for skel in self.skeleton_cats:
+            if skel.alive:
+                dist = math.hypot(attacker.x - skel.x, attacker.y - skel.y)
+                if dist < ATTACK_RANGE + skel.radius:
+                    skel.hp -= 1
+                    if skel.hp <= 0:
+                        skel.alive = False
+                        attacker.score += 250
+                        plant_id = f"plant_{uuid.uuid4().hex[:6]}"
+                        self.carnivorous_plants.append(CarnivorousPlant(plant_id, skel.x, skel.y))
+                    hit_info = {
+                        "type": "skeleton_hit",
+                        "cat_id": skel.id,
+                        "cat_dead": not skel.alive,
+                        "x": skel.x,
+                        "y": skel.y,
+                        "weapon": attacker.weapon,
+                    }
+                    return True, "¡Golpeaste al Gato Esqueleto!", hit_info
 
         # 2. Check hitting Evil Clone Impostors
         for clone in self.clone_impostors:
@@ -1535,6 +1680,8 @@ class GameRoom:
             "task_bar": task_percentage,
             "players": players_data,
             "cats": [c.to_dict() for c in self.zombie_cats],
+            "skeleton_cats": [c.to_dict() for c in self.skeleton_cats],
+            "carnivorous_plants": [p.to_dict() for p in self.carnivorous_plants],
             "orbs": [o.to_dict() for o in self.light_orbs],
             "invis_buttons": [b.to_dict() for b in self.invis_buttons if b.active],
             "clones": [cl.to_dict() for cl in self.clone_impostors],

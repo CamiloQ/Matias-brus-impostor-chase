@@ -905,6 +905,12 @@ class UIManager {
             } else if (hit.type === "clone_hit") {
                 text = hit.clone_dead ? "Venciste al impostor" : "GOLPE AL CLON";
                 color = "#ff3366";
+            } else if (hit.type === "skeleton_hit") {
+                text = hit.cat_dead ? "¡ESQUELETO DERROTADO!" : "¡CRUJIDO DE HUESOS!";
+                color = "#ecf0f1";
+                if (window.gameEngine) {
+                    window.gameEngine.spawnSparks(hit.x, hit.y, hit.cat_dead ? 15 : 8, "#ecf0f1");
+                }
             } else if (hit.type === "player_hit") {
                 text = "💥 ¡PELEA!";
                 color = "#f39c12";

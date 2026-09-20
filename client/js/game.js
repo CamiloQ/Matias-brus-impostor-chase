@@ -33,6 +33,8 @@ class GameEngine {
 
         this.players = new Map();
         this.zombieCats = [];
+        this.skeletonCats = [];
+        this.carnivorousPlants = [];
         this.lightOrbs = [];
         this.cloneImpostors = [];
         this.collectibles = [];
@@ -302,6 +304,8 @@ class GameEngine {
         this.gameState = snapshot.state;
         this.deadBodies = snapshot.bodies || [];
         this.zombieCats = snapshot.cats || [];
+        this.skeletonCats = snapshot.skeleton_cats || [];
+        this.carnivorousPlants = snapshot.carnivorous_plants || [];
         this.lightOrbs = snapshot.orbs || [];
         this.invisButtons = snapshot.invis_buttons || [];
         this.cloneImpostors = snapshot.clones || [];
@@ -688,6 +692,8 @@ class GameEngine {
 
         // 6. Dead bodies
         this.drawDeadBodies(ctx);
+        this.drawSkeletonCats(ctx);
+        this.drawCarnivorousPlants(ctx);
 
         // 7. Light Orbs (Floating magic clone lights)
         this.drawLightOrbs(ctx);
@@ -4544,6 +4550,104 @@ class GameEngine {
         }
 
         ctx.restore();
+    }
+
+    
+    drawSkeletonCats(ctx) {
+        this.skeletonCats.forEach(cat => {
+            if (!cat.alive) return;
+            // Draw skeleton cat
+            ctx.save();
+            ctx.translate(cat.x, cat.y);
+            
+            ctx.fillStyle = "#ecf0f1"; // bone color
+            
+            // Head
+            ctx.beginPath();
+            ctx.arc(0, -10, 12, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Ears
+            ctx.beginPath();
+            ctx.moveTo(-8, -18); ctx.lineTo(-14, -28); ctx.lineTo(-2, -20);
+            ctx.moveTo(8, -18); ctx.lineTo(14, -28); ctx.lineTo(2, -20);
+            ctx.fill();
+            
+            // Eyes (empty sockets)
+            ctx.fillStyle = "#2c3e50";
+            ctx.beginPath(); ctx.arc(-4, -12, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(4, -12, 3, 0, Math.PI * 2); ctx.fill();
+            
+            // Body (ribcage)
+            ctx.strokeStyle = "#ecf0f1";
+            ctx.lineWidth = 3;
+            ctx.lineCap = "round";
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 15); ctx.stroke(); // spine
+            ctx.beginPath(); ctx.moveTo(-8, 5); ctx.lineTo(8, 5); ctx.stroke(); // ribs
+            ctx.beginPath(); ctx.moveTo(-8, 10); ctx.lineTo(8, 10); ctx.stroke(); 
+            
+            if (cat.hp > 1) {
+                // draw tail
+                ctx.beginPath(); ctx.moveTo(0, 15); ctx.lineTo(10, 20); ctx.lineTo(15, 10); ctx.stroke(); 
+                // draw legs
+                ctx.beginPath(); ctx.moveTo(-5, 15); ctx.lineTo(-5, 22); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(5, 15); ctx.lineTo(5, 22); ctx.stroke();
+            }
+            
+            // Name / HP bar
+            ctx.fillStyle = "#e74c3c";
+            ctx.fillRect(-12, -36, 24, 4);
+            ctx.fillStyle = "#2ecc71";
+            ctx.fillRect(-12, -36, (cat.hp / cat.max_hp) * 24, 4);
+            
+            ctx.font = "bold 10px 'Rajdhani'";
+            ctx.fillStyle = "#ecf0f1";
+            ctx.textAlign = "center";
+            ctx.fillText("Gato Esqueleto", 0, -40);
+            
+            ctx.restore();
+        });
+    }
+
+    drawCarnivorousPlants(ctx) {
+        this.carnivorousPlants.forEach(plant => {
+            if (!plant.alive) return;
+            
+            ctx.save();
+            ctx.translate(plant.x, plant.y);
+            
+            // Stem
+            ctx.fillStyle = "#27ae60";
+            ctx.fillRect(-4, 0, 8, plant.radius);
+            
+            // Head
+            ctx.fillStyle = "#c0392b";
+            ctx.beginPath();
+            ctx.arc(0, 0, plant.radius, 0, Math.PI, true); // Top half
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(0, 4, plant.radius, 0, Math.PI, false); // Bottom half
+            ctx.fill();
+            
+            // Teeth
+            ctx.fillStyle = "#ecf0f1";
+            for(let i = -plant.radius + 4; i < plant.radius - 4; i += 8) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0); ctx.lineTo(i+4, 8); ctx.lineTo(i+8, 0);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(i, 4); ctx.lineTo(i+4, -4); ctx.lineTo(i+8, 4);
+                ctx.fill();
+            }
+            
+            // Fed indicator
+            ctx.fillStyle = "#ecf0f1";
+            ctx.font = "bold 12px 'Rajdhani'";
+            ctx.textAlign = "center";
+            ctx.fillText("Masticando: " + plant.fed_count, 0, -plant.radius - 5);
+            
+            ctx.restore();
+        });
     }
 
     drawDeadBodies(ctx) {
