@@ -126,6 +126,10 @@ class UIManager {
             const joinTab = document.querySelector('.tab-btn[data-tab="join"]');
             if (joinTab) joinTab.click();
         }
+
+        if (window.crazyGamesService) {
+            window.crazyGamesService.init();
+        }
     }
 
     bindActionTap(button, handler) {
@@ -474,6 +478,9 @@ class UIManager {
         });
 
         this.btnLeaveRoom.addEventListener("click", () => {
+            if (window.crazyGamesService) {
+                window.crazyGamesService.gameplayStop();
+            }
             window.location.reload();
         });
 
@@ -482,7 +489,9 @@ class UIManager {
             this.vibrate(25);
             window.soundEngine.playClick();
             const code = this.displayRoomCode.textContent;
-            const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${code}`;
+            const inviteUrl = window.crazyGamesService
+                ? window.crazyGamesService.getInviteLink(code)
+                : `${window.location.origin}${window.location.pathname}?room=${code}`;
             navigator.clipboard.writeText(inviteUrl).then(() => {
                 const originalText = this.btnCopyCode.textContent;
                 this.btnCopyCode.textContent = "✅ ¡Copiado!";
@@ -768,6 +777,9 @@ class UIManager {
                 window.gameEngine.gameState = "PLAYING";
             }
             this.displayRoomCode.textContent = data.room_id;
+            if (window.crazyGamesService) {
+                window.crazyGamesService.updateRoom(data.room_id, true);
+            }
             this.catalogs = data.catalogs || {};
             if (data.player && data.player.gender) {
                 this.selectedGender = data.player.gender;
@@ -832,6 +844,9 @@ class UIManager {
         });
 
         window.network.on("game_started", (data) => {
+            if (window.crazyGamesService) {
+                window.crazyGamesService.gameplayStart();
+            }
             this.waitingScreen.classList.add("hidden");
             this.topBar.classList.remove("hidden");
             this.taskChecklist.classList.remove("hidden");
@@ -1577,6 +1592,10 @@ class UIManager {
 
     showGameOver(winner) {
         if (this.gameOverModal.classList.contains("active")) return;
+        if (window.crazyGamesService) {
+            window.crazyGamesService.gameplayStop();
+            window.crazyGamesService.requestMidgameAd();
+        }
         this.gameOverModal.classList.add("active");
         this.gameOverModal.classList.remove("hidden");
         const title = document.getElementById("game-over-title");
