@@ -28,11 +28,11 @@
 - `CarnivorousPlant.tick(dt, dead_bodies)`: handles 25.0s digestion cycle, devours body on timer expiry.
 - `GameRoom.init_world_entities()`: spawns 4 initial strategic Venus macetas.
 
-- [ ] **Step 1: Write failing unit test for CarnivorousPlant states and digestion**
-- [ ] **Step 2: Run test to verify it fails**
-- [ ] **Step 3: Implement CarnivorousPlant idle/digesting states and static maceta spawns**
-- [ ] **Step 4: Run test to verify it passes**
-- [ ] **Step 5: Commit changes**
+- [x] **Step 1: Write failing unit test for CarnivorousPlant states and digestion**
+- [x] **Step 2: Run test to verify it fails**
+- [x] **Step 3: Implement CarnivorousPlant idle/digesting states and static maceta spawns**
+- [x] **Step 4: Run test to verify it passes**
+- [x] **Step 5: Commit changes**
 
 ---
 
@@ -45,11 +45,11 @@
 - `SkeletonCat`: When `hp <= 0`, spawns a new `CarnivorousPlant` at `(skel.x, skel.y)`.
 - `ZombieCat.tick(dt, dead_bodies, carnivorous_plants)`: claims free dead bodies, drags them at 115 px/s to nearest idle plant, drops body on punch/damage.
 
-- [ ] **Step 1: Write failing unit test for skeleton metamorphosis and zombie cat body hauling**
-- [ ] **Step 2: Run test to verify it fails**
-- [ ] **Step 3: Implement SkeletonCat plant spawn on death and ZombieCat hauling logic**
-- [ ] **Step 4: Run test to verify it passes**
-- [ ] **Step 5: Commit changes**
+- [x] **Step 1: Write failing unit test for skeleton metamorphosis and zombie cat body hauling**
+- [x] **Step 2: Run test to verify it fails**
+- [x] **Step 3: Implement SkeletonCat plant spawn on death and ZombieCat hauling logic**
+- [x] **Step 4: Run test to verify it passes**
+- [x] **Step 5: Commit changes**
 
 ---
 
@@ -64,11 +64,11 @@
 - `GameRoom.accelerate_revive(helper_id, body_id)` / automatic nearby alive teammate proximity acceleration (3x).
 - Player revival when `revive_timer <= 0`: restores `player.alive=True`, `hp=60`, clears body.
 
-- [ ] **Step 1: Write failing unit test for player revive after 20s and teammate speedup**
-- [ ] **Step 2: Run test to verify it fails**
-- [ ] **Step 3: Implement revive countdown, teammate acceleration, and revival event**
-- [ ] **Step 4: Run test to verify it passes**
-- [ ] **Step 5: Commit changes**
+- [x] **Step 1: Write failing unit test for player revive after 20s and teammate speedup**
+- [x] **Step 2: Run test to verify it fails**
+- [x] **Step 3: Implement revive countdown, teammate acceleration, and revival event**
+- [x] **Step 4: Run test to verify it passes**
+- [x] **Step 5: Commit changes**
 
 ---
 
@@ -79,11 +79,11 @@
 **Interfaces:**
 - `drawCarnivorousPlants(ctx)`: renders terracotta planter pot, basal leaf rosette, paired scarlet/crimson bivalve lobes with lime-green edges, interlocking marginal cilia teeth, trigger hairs, idle breathing animation, and 25s closed digestion pulsing.
 
-- [ ] **Step 1: Implement terracotta maceta base and leafy rosette in `drawCarnivorousPlants`**
-- [ ] **Step 2: Implement bivalve clam-shell lobes with scarlet interior and lime margins**
-- [ ] **Step 3: Implement marginal cilia teeth and open vs closed digestion animation (25s timer HUD)**
-- [ ] **Step 4: Test in browser/node syntax check**
-- [ ] **Step 5: Commit changes**
+- [x] **Step 1: Implement terracotta maceta base and leafy rosette in `drawCarnivorousPlants`**
+- [x] **Step 2: Implement bivalve clam-shell lobes with scarlet interior and lime margins**
+- [x] **Step 3: Implement marginal cilia teeth and open vs closed digestion animation (25s timer HUD)**
+- [x] **Step 4: Test in browser/node syntax check**
+- [x] **Step 5: Commit changes**
 
 ---
 
@@ -97,11 +97,11 @@
 - `drawDeadBodies(ctx)`: circular 20s revive progress ring and hauling rope/tether when attached to a Zombie Cat.
 - Revive interaction button for nearby teammates.
 
-- [ ] **Step 1: Add tail sway and ear twitching in `drawSkeletonCats`**
-- [ ] **Step 2: Add revive timer circular HUD and dragging tether in `drawDeadBodies`**
-- [ ] **Step 3: Add interactive revive button in `client/js/ui.js`**
-- [ ] **Step 4: Check JS syntax with node**
-- [ ] **Step 5: Commit changes**
+- [x] **Step 1: Add tail sway and ear twitching in `drawSkeletonCats`**
+- [x] **Step 2: Add revive timer circular HUD and dragging tether in `drawDeadBodies`**
+- [x] **Step 3: Add interactive revive button in `client/js/ui.js`**
+- [x] **Step 4: Check JS syntax with node**
+- [x] **Step 5: Commit changes**
 
 ---
 
@@ -110,8 +110,8 @@
 - Modify: `client/index.html` (bump `?v=12`)
 - Test: Full backend test suite + Railway deploy
 
-- [ ] **Step 1: Bump script version to `?v=12` in `client/index.html`**
-- [ ] **Step 2: Run full unit test suite `python3 -m unittest discover -s server`**
-- [ ] **Step 3: Commit and push to `origin main`**
-- [ ] **Step 4: Deploy to Railway via `railway up --detach`**
-- [ ] **Step 5: Verify production status HTTP 200 with `v=12`**
+- [x] **Step 1: Bump script version to `?v=12` in `client/index.html`**
+- [x] **Step 2: Run full unit test suite `python3 -m unittest discover -s server`**
+- [x] **Step 3: Commit and push to `origin main`**
+- [x] **Step 4: Deploy to Railway via `railway up --detach`**
+- [x] **Step 5: Verify production status HTTP 200 with `v=12`**
