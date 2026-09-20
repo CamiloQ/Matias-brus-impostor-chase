@@ -229,12 +229,19 @@ async def handle_ws_message(writer, msg_str):
                 player.connected = True
                 conn_info["player_id"] = player.id
                 player_id = player.id
-            else:
-                if len(room.players) >= 12:
-                    await send_json(
-                        writer, {"type": "error", "message": "La sala está llena (máx 12)"}
-                    )
-                    return
+
+        if player:
+            # If the room is in waiting/lobby state or player is returning, update character & gender
+            if room.state in ("waiting", "LOBBY") or not player.alive:
+                player.set_character(player_character, gender=player_gender)
+                if player_name:
+                    player.name = player_name
+        else:
+            if len(room.players) >= 12:
+                await send_json(
+                    writer, {"type": "error", "message": "La sala está llena (máx 12)"}
+                )
+                return
 
                 # Name collision handling: Disambiguate if name already exists
                 existing_names = [p.name.strip().lower() for p in room.players.values()]
@@ -321,7 +328,8 @@ async def handle_ws_message(writer, msg_str):
             skin = data.get("skin", "onesie_tie")
             weapon = data.get("weapon", "pan")
             gender = data.get("gender", None)
-            room.update_customization(player_id, hat, skin, weapon, gender=gender)
+            character = data.get("character", None)
+            room.update_customization(player_id, hat, skin, weapon, gender=gender, character=character)
             p = room.players.get(player_id)
             if p:
                 await broadcast_to_room(
@@ -330,6 +338,8 @@ async def handle_ws_message(writer, msg_str):
                         "type": "wardrobe_changed",
                         "player_id": player_id,
                         "gender": p.gender,
+                        "character": p.character,
+                        "color": p.color,
                         "hat": p.hat,
                         "skin": p.skin,
                         "weapon": p.weapon,

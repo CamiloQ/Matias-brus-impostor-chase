@@ -310,8 +310,10 @@ class UIManager {
         });
 
         // Character Selection (11 Personajes Oficiales)
-        this.selectedCharacter = "matias";
-        this.selectedGender = "boy";
+        const savedChar = localStorage.getItem("chase_character") || "matias";
+        const savedGender = localStorage.getItem("chase_gender") || "boy";
+        this.selectedCharacter = savedChar;
+        this.selectedGender = savedGender;
 
         const CHAR_NAMES = {
             "matias": "Matías",
@@ -328,6 +330,18 @@ class UIManager {
         };
 
         const charButtons = document.querySelectorAll(".char-select-btn");
+        charButtons.forEach(b => {
+            b.classList.toggle("active", b.getAttribute("data-character") === this.selectedCharacter);
+        });
+
+        const btnGenderBoy = document.getElementById("btn-gender-boy");
+        const btnGenderGirl = document.getElementById("btn-gender-girl");
+
+        if (btnGenderBoy && btnGenderGirl) {
+            btnGenderBoy.classList.toggle("active", this.selectedGender === "boy");
+            btnGenderGirl.classList.toggle("active", this.selectedGender === "girl");
+        }
+
         const selectChar = (btn) => {
             const charId = btn.getAttribute("data-character");
             if (charId) {
@@ -343,17 +357,18 @@ class UIManager {
 
                 if (charId === "nina_blanca" || charId === "reina_flor") {
                     this.selectedGender = "girl";
-                    const gBtn = document.getElementById("btn-gender-girl");
-                    if (gBtn) gBtn.classList.add("active");
-                    const bBtn = document.getElementById("btn-gender-boy");
-                    if (bBtn) bBtn.classList.remove("active");
+                    if (btnGenderGirl) btnGenderGirl.classList.add("active");
+                    if (btnGenderBoy) btnGenderBoy.classList.remove("active");
                 } else {
                     this.selectedGender = "boy";
-                    const bBtn = document.getElementById("btn-gender-boy");
-                    if (bBtn) bBtn.classList.add("active");
-                    const gBtn = document.getElementById("btn-gender-girl");
-                    if (gBtn) gBtn.classList.remove("active");
+                    if (btnGenderBoy) btnGenderBoy.classList.add("active");
+                    if (btnGenderGirl) btnGenderGirl.classList.remove("active");
                 }
+
+                try {
+                    localStorage.setItem("chase_character", this.selectedCharacter);
+                    localStorage.setItem("chase_gender", this.selectedGender);
+                } catch (e) {}
 
                 this.vibrate(20);
                 if (window.soundEngine) window.soundEngine.playClick();
@@ -365,14 +380,14 @@ class UIManager {
             btn.addEventListener("click", () => selectChar(btn));
         });
 
-        const btnGenderBoy = document.getElementById("btn-gender-boy");
-        const btnGenderGirl = document.getElementById("btn-gender-girl");
-
         if (btnGenderBoy && btnGenderGirl) {
             btnGenderBoy.addEventListener("click", () => {
                 this.selectedGender = "boy";
                 btnGenderBoy.classList.add("active");
                 btnGenderGirl.classList.remove("active");
+                try {
+                    localStorage.setItem("chase_gender", "boy");
+                } catch (e) {}
                 this.vibrate(15);
                 window.soundEngine.playClick();
             });
@@ -381,6 +396,9 @@ class UIManager {
                 this.selectedGender = "girl";
                 btnGenderGirl.classList.add("active");
                 btnGenderBoy.classList.remove("active");
+                try {
+                    localStorage.setItem("chase_gender", "girl");
+                } catch (e) {}
                 this.vibrate(15);
                 window.soundEngine.playClick();
             });
@@ -431,6 +449,8 @@ class UIManager {
             window.soundEngine.playClick();
             const nick = this.inputNickname.value.trim() || "Matias";
             localStorage.setItem("chase_nickname", nick);
+            localStorage.setItem("chase_character", this.selectedCharacter || "matias");
+            localStorage.setItem("chase_gender", this.selectedGender || "boy");
             await this.ensureConnected();
             const targetRoom = (this.roomParam || "").trim().toUpperCase();
             window.network.joinRoom(targetRoom, nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
@@ -466,6 +486,8 @@ class UIManager {
                 return;
             }
             localStorage.setItem("chase_nickname", nick);
+            localStorage.setItem("chase_character", this.selectedCharacter || "matias");
+            localStorage.setItem("chase_gender", this.selectedGender || "boy");
             await this.ensureConnected();
             window.network.joinRoom(code, nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
         });
@@ -755,6 +777,8 @@ class UIManager {
         window.soundEngine.playClick();
         const nick = this.inputNickname.value.trim() || "Matias";
         localStorage.setItem("chase_nickname", nick);
+        localStorage.setItem("chase_character", this.selectedCharacter || "matias");
+        localStorage.setItem("chase_gender", this.selectedGender || "boy");
         await this.ensureConnected();
         window.network.joinRoom(roomId, nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
     }
@@ -781,11 +805,19 @@ class UIManager {
                 window.crazyGamesService.updateRoom(data.room_id, true);
             }
             this.catalogs = data.catalogs || {};
-            if (data.player && data.player.gender) {
-                this.selectedGender = data.player.gender;
-                document.querySelectorAll(".w-gender-btn").forEach(b => {
-                    b.classList.toggle("active", b.getAttribute("data-wgender") === this.selectedGender);
-                });
+            if (data.player) {
+                if (data.player.gender) {
+                    this.selectedGender = data.player.gender;
+                    document.querySelectorAll(".w-gender-btn").forEach(b => {
+                        b.classList.toggle("active", b.getAttribute("data-wgender") === this.selectedGender);
+                    });
+                }
+                if (data.player.character) {
+                    this.selectedCharacter = data.player.character;
+                    try {
+                        localStorage.setItem("chase_character", this.selectedCharacter);
+                    } catch (e) {}
+                }
             }
             this.renderWardrobeCatalog();
             window.gameEngine.init(data.map, data.player_id);
@@ -813,6 +845,25 @@ class UIManager {
                         targetY: data.player.y,
                         walkAnim: 0
                     });
+                } else {
+                    Object.assign(existing, data.player);
+                }
+                if (window.gameEngine.gameState === "LOBBY") {
+                    this.updateWaitingPlayers(Array.from(window.gameEngine.players.values()));
+                }
+            }
+        });
+
+        window.network.on("wardrobe_changed", (data) => {
+            if (data.player_id) {
+                const p = window.gameEngine.players.get(data.player_id);
+                if (p) {
+                    if (data.gender) p.gender = data.gender;
+                    if (data.character) p.character = data.character;
+                    if (data.color) p.color = data.color;
+                    if (data.hat) p.hat = data.hat;
+                    if (data.skin) p.skin = data.skin;
+                    if (data.weapon) p.weapon = data.weapon;
                 }
                 if (window.gameEngine.gameState === "LOBBY") {
                     this.updateWaitingPlayers(Array.from(window.gameEngine.players.values()));
@@ -1109,6 +1160,7 @@ class UIManager {
     saveWardrobe() {
         window.network.send({
             type: "update_wardrobe",
+            character: this.selectedCharacter,
             gender: this.selectedGender,
             hat: this.selectedHat,
             skin: this.selectedSkin,

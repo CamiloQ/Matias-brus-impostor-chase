@@ -5044,6 +5044,13 @@ class GameEngine {
             ctx.arc(2, -12, 4, 0, Math.PI * 2);
             ctx.fill();
 
+            // Fallen hat on the floor next to body
+            const bodyChar = (b.character || "matias").toLowerCase();
+            const bodyHat = b.hat || (bodyChar === "matias" ? "mini_matias" : null);
+            if (bodyHat && bodyHat !== "none" && typeof this.drawHat === "function") {
+                this.drawHat(ctx, bodyHat, 14, 2);
+            }
+
             // 3. Circular 20-second Revive Progress Dial HUD
             const rTime = Math.max(0, b.revive_timer !== undefined ? b.revive_timer : 20.0);
             const progress = Math.min(1, Math.max(0, 1 - (rTime / 20.0))); // 0.0 -> 1.0
@@ -5088,10 +5095,16 @@ class GameEngine {
                 ctx.fillText(`💚 Revivir: ${rTime.toFixed(1)}s`, 0, dialY - 14);
             }
 
-            // Victim name tag
+            // Victim name tag with character icon badge
+            const charIcons = {
+                matias: "👦 ", fantasma: "🔬 ", gato_azul: "🐱 ", reina_flor: "🌸 ",
+                duende_verde: "🍀 ", granjero_rojo: "🌾 ", sanador_naranja: "🌿 ",
+                nina_blanca: "🦋 ", mistico_uva: "🍇 ", mago_negro: "🎩 ", ciclope_astral: "👁️ "
+            };
+            const bIcon = charIcons[bodyChar] || "";
             ctx.font = "bold 11px 'Rajdhani', sans-serif";
             ctx.fillStyle = "#ecf0f1";
-            ctx.fillText(`Cuerpo de ${b.victim_name}`, 0, 26);
+            ctx.fillText(`${bIcon}${b.victim_name || 'Astronauta'}`, 0, 26);
 
             ctx.restore();
         });

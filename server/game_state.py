@@ -274,6 +274,16 @@ HATS_CATALOG = [
     {"id": "cat_mask", "name": "Orejas de Gato Negro", "icon": "🐱"},
     {"id": "crown", "name": "Corona Real Dorada", "icon": "👑"},
     {"id": "green_antenna", "name": "Antena Verde Espacial", "icon": "👽"},
+    # Signature character hats
+    {"id": "microscope_bot", "name": "Robot Visor Científico", "icon": "🔬"},
+    {"id": "crown_flower", "name": "Corona y Flor Real", "icon": "🌸"},
+    {"id": "leprechaun_gold", "name": "Trébol y Moneda de Oro", "icon": "🍀"},
+    {"id": "straw_hat", "name": "Sombrero de Paja y Trigo", "icon": "🌾"},
+    {"id": "healing_plant", "name": "Planta Sanadora Espacial", "icon": "🌿"},
+    {"id": "butterfly_bow", "name": "Moño de Mariposa Brillante", "icon": "🦋"},
+    {"id": "alien_antennas", "name": "Antenas Espaciales Místicas", "icon": "📡"},
+    {"id": "magic_tophat", "name": "Sombrero de Copa y Conejo", "icon": "🎩"},
+    {"id": "cyclops_eye", "name": "Ojo Astral y Criatura", "icon": "👁️"},
 ]
 
 # EXACT SKINS / OUTFITS
@@ -289,11 +299,21 @@ SKINS_CATALOG = [
     {"id": "ninja_suit", "name": "Túnica Ninja Sombría", "icon": "🥷"},
 ]
 
-# WEAPONS FOR BRAWLS
+# WEAPONS FOR BRAWLS (including character signature weapons with balanced damage)
 WEAPONS_CATALOG = [
     {"id": "fists", "name": "Puñetazos Limpios", "dmg": 20, "icon": "👊"},
     {"id": "pan", "name": "Sartén con Huevo Frito", "dmg": 35, "icon": "🍳"},
     {"id": "energy_sword", "name": "Espada de Energía Doble", "dmg": 45, "icon": "⚡"},
+    {"id": "racket", "name": "Raqueta de Tenis Matías", "dmg": 30, "icon": "🎾"},
+    {"id": "microscope", "name": "Microscopio de Impacto", "dmg": 32, "icon": "🔬"},
+    {"id": "magic_flower", "name": "Flor Mágica Real", "dmg": 30, "icon": "🌸"},
+    {"id": "gold_pot", "name": "Caldero de Oro Contundente", "dmg": 34, "icon": "🏺"},
+    {"id": "wheat_fork", "name": "Horqueta de Granja Afilada", "dmg": 35, "icon": "🔱"},
+    {"id": "herbs_basket", "name": "Canasta de Hierbas Silvestres", "dmg": 28, "icon": "🧺"},
+    {"id": "star_wand", "name": "Varita de Estrellas Fugaces", "dmg": 32, "icon": "⭐"},
+    {"id": "crystal_wand", "name": "Cetro de Cristal Cósmico", "dmg": 34, "icon": "🔮"},
+    {"id": "magic_cane", "name": "Bastón Arcano de Mago", "dmg": 36, "icon": "🪄"},
+    {"id": "crystal_orb", "name": "Orbe Astral de Energía", "dmg": 35, "icon": "🔮"},
 ]
 
 PLAYER_COLORS = [
@@ -531,11 +551,13 @@ class ZombieCat:
 
     def take_hit_and_drop_body(self, dead_bodies, attacker_id=None):
         """Called when cat is punched or damaged: drops carried body and attacks attacker or stuns"""
-        if self.hauling_body_id:
-            for b in dead_bodies:
-                if isinstance(b, dict) and b.get("id") == self.hauling_body_id:
+        for b in dead_bodies:
+            if isinstance(b, dict):
+                if b.get("carrier_cat_id") == self.id:
                     b["carrier_cat_id"] = None
-            self.hauling_body_id = None
+                if b.get("targeted_by_cat_id") == self.id:
+                    b["targeted_by_cat_id"] = None
+        self.hauling_body_id = None
         self.target_body_id = None
 
         if attacker_id:
@@ -551,8 +573,16 @@ class ZombieCat:
             self.aggro_timer = 0.0
 
     def tick_swarm(self, dt, dead_bodies, carnivorous_plants, players=None, room=None):
-        """Swarm & combat logic: fight attackers, hunt free bodies, drag to nearest idle Venus pot, deliver and feed"""
+        """Swarm & combat logic: fight attackers, hunt free bodies within sensory range, drag to nearest idle Venus pot, deliver and feed"""
         if not self.alive:
+            for b in dead_bodies:
+                if isinstance(b, dict):
+                    if b.get("carrier_cat_id") == self.id:
+                        b["carrier_cat_id"] = None
+                    if b.get("targeted_by_cat_id") == self.id:
+                        b["targeted_by_cat_id"] = None
+            self.hauling_body_id = None
+            self.target_body_id = None
             self.respawn_timer -= dt
             if self.respawn_timer <= 0:
                 self.alive = True
@@ -590,11 +620,17 @@ class ZombieCat:
                         target.hp = max(0, target.hp - 18)
                         if target.hp <= 0:
                             target.alive = False
+                            new_body = None
                             if room and hasattr(room, "create_dead_body"):
-                                room.create_dead_body(target)
+                                new_body = room.create_dead_body(target)
                             elif room and hasattr(room, "kill_player"):
-                                room.kill_player(target, killer=None)
+                                new_body = room.kill_player(target, killer=None)
                             self.state = "seeking_body"
+                            if new_body and isinstance(new_body, dict):
+                                self.target_body_id = new_body["id"]
+                                new_body["targeted_by_cat_id"] = self.id
+                            else:
+                                self.target_body_id = None
                             self.target_player_id = None
                             self.aggro_timer = 0.0
                             return
@@ -640,10 +676,12 @@ class ZombieCat:
                         if target_plant.trap_body(hauled_body):
                             hauled_body["x"] = round(target_plant.x, 1)
                             hauled_body["y"] = round(target_plant.y, 1)
+                            hauled_body["targeted_by_cat_id"] = None
                             self.hauling_body_id = None
                             self.state = "roaming"
                         else:
                             hauled_body["carrier_cat_id"] = None
+                            hauled_body["targeted_by_cat_id"] = None
                             self.hauling_body_id = None
                             self.state = "roaming"
                     elif plant_state == "digesting" and dist_to_plant < target_plant.radius + 28.0:
@@ -689,25 +727,49 @@ class ZombieCat:
                 else:
                     # If no plants exist at all in the room, release body
                     hauled_body["carrier_cat_id"] = None
+                    hauled_body["targeted_by_cat_id"] = None
                     self.hauling_body_id = None
                     self.state = "roaming"
             return
 
-        # 2. If not hauling, check for available free bodies in the room (Swarm Bounty)
+        # 2. If not hauling, check for available free bodies within sensory perception range
+        SCAVENGER_SENSE_RANGE = 650.0  # Cats only sense and activate on bodies within 650px (sector scope)
         free_bodies = [
             b for b in dead_bodies
             if isinstance(b, dict) and not b.get("is_trapped_in_plant") and not b.get("carrier_cat_id")
+            and (not b.get("targeted_by_cat_id") or b.get("targeted_by_cat_id") == self.id)
+            and math.hypot(self.x - b["x"], self.y - b["y"]) <= SCAVENGER_SENSE_RANGE
         ]
         if free_bodies:
             nearest_body = min(free_bodies, key=lambda b: math.hypot(self.x - b["x"], self.y - b["y"]))
+            dist = math.hypot(self.x - nearest_body["x"], self.y - nearest_body["y"])
+
+            # Defensive Check: If approaching body and an alive crewmate is actively reviving or assisting
+            if dist < 180.0 and players:
+                nearby_rescuers = [
+                    p for p in players.values()
+                    if p.alive and p.role == "crewmate" and not getattr(p, "in_vent", None)
+                    and p.id != nearest_body.get("victim_id")
+                    and math.hypot(p.x - nearest_body["x"], p.y - nearest_body["y"]) < 70.0
+                ]
+                if nearby_rescuers:
+                    rescuer = min(nearby_rescuers, key=lambda p: math.hypot(self.x - p.x, self.y - p.y))
+                    self.state = "aggro"
+                    self.target_player_id = rescuer.id
+                    self.aggro_timer = 5.0
+                    nearest_body["targeted_by_cat_id"] = None
+                    self.target_body_id = None
+                    return
+
             self.target_body_id = nearest_body["id"]
+            nearest_body["targeted_by_cat_id"] = self.id
             self.state = "seeking_body"
 
-            dist = math.hypot(self.x - nearest_body["x"], self.y - nearest_body["y"])
             if dist < 45.0:
                 # Grab the body reliably
                 self.hauling_body_id = nearest_body["id"]
                 nearest_body["carrier_cat_id"] = self.id
+                nearest_body["targeted_by_cat_id"] = self.id
                 self.state = "hauling_body"
             else:
                 base_angle = math.atan2(nearest_body["y"] - self.y, nearest_body["x"] - self.x)
@@ -737,6 +799,13 @@ class ZombieCat:
                     self.stuck_detour_timer = 0.75
                 self.x, self.y = cx, cy
             return
+
+        # If no free bodies in sensory range, clear any old target reservation
+        if self.target_body_id:
+            for b in dead_bodies:
+                if isinstance(b, dict) and b.get("id") == self.target_body_id and b.get("targeted_by_cat_id") == self.id:
+                    b["targeted_by_cat_id"] = None
+            self.target_body_id = None
 
         # 3. Default roaming
         self.state = "roaming"
@@ -1128,6 +1197,24 @@ class Player:
         self.invis_timer = 0.0
         self.ghost_button_cooldown = 0.0
 
+    def set_character(self, character_id, gender=None):
+        """Sets character, updating appearance, signature equipment and gender."""
+        char_info = next(
+            (c for c in CHARACTERS_CATALOG if c["id"] == str(character_id).lower()), None
+        )
+        if char_info:
+            self.character = char_info["id"]
+            self.character_num = char_info["num"]
+            if gender in ("boy", "girl"):
+                self.gender = gender
+            else:
+                self.gender = char_info["gender"]
+            self.color = char_info["color"]
+            self.hat = char_info["hat"]
+            self.weapon = char_info["weapon"]
+            return True
+        return False
+
     def assign_tasks(self, task_pool):
         """Docstring for assign_tasks."""
         self.assigned_tasks = [t["id"] for t in task_pool]
@@ -1273,6 +1360,14 @@ class GameRoom:
 
     def add_player(self, player_id, name="", gender="boy", character="matias"):
         """Docstring for add_player."""
+        if player_id in self.players:
+            player = self.players[player_id]
+            if name:
+                player.name = name
+            player.set_character(character, gender=gender)
+            self.empty_since = None
+            return player
+
         color_idx = len(self.players)
         player = Player(player_id, name, color_idx, gender=gender, character=character)
 
@@ -1297,10 +1392,12 @@ class GameRoom:
             if not self.players:
                 self.empty_since = time.time()
 
-    def update_customization(self, player_id, hat_id, skin_id, weapon_id, gender=None):
+    def update_customization(self, player_id, hat_id, skin_id, weapon_id, gender=None, character=None):
         """Docstring for update_customization."""
         player = self.players.get(player_id)
         if player:
+            if character and any(c["id"] == str(character).lower() for c in CHARACTERS_CATALOG):
+                player.set_character(character, gender=gender)
             if any(h["id"] == hat_id for h in HATS_CATALOG):
                 player.hat = hat_id
             if any(s["id"] == skin_id for s in SKINS_CATALOG):
@@ -1373,6 +1470,8 @@ class GameRoom:
             "id": f"body_{uuid.uuid4().hex[:6]}",
             "victim_id": player.id,
             "victim_name": player.name,
+            "character": getattr(player, "character", "matias"),
+            "gender": getattr(player, "gender", "boy"),
             "color": player.color,
             "hat": player.hat,
             "skin": player.skin,
@@ -1381,6 +1480,7 @@ class GameRoom:
             "time": time.time(),
             "revive_timer": 20.0,
             "carrier_cat_id": None,
+            "targeted_by_cat_id": None,
             "is_trapped_in_plant": False,
             "plant_id": None,
             "revive_boosted": False,
@@ -1429,10 +1529,12 @@ class GameRoom:
                     victim.invis_timer = 0.0
 
                 carrier_cat_id = body.get("carrier_cat_id")
-                if carrier_cat_id:
-                    for cat in self.zombie_cats:
-                        if cat.id == carrier_cat_id:
-                            cat.hauling_body_id = None
+                targeted_by_cat_id = body.get("targeted_by_cat_id")
+                for cat in self.zombie_cats:
+                    if cat.id == carrier_cat_id or cat.id == targeted_by_cat_id or cat.target_body_id == body["id"]:
+                        cat.hauling_body_id = None
+                        cat.target_body_id = None
+                        if cat.state in ("seeking_body", "hauling_body"):
                             cat.state = "roaming"
 
                 if body in self.dead_bodies:
