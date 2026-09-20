@@ -451,9 +451,18 @@ class UIManager {
             localStorage.setItem("chase_nickname", nick);
             localStorage.setItem("chase_character", this.selectedCharacter || "matias");
             localStorage.setItem("chase_gender", this.selectedGender || "boy");
-            await this.ensureConnected();
-            const targetRoom = (this.roomParam || "").trim().toUpperCase();
-            window.network.joinRoom(targetRoom, nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
+            try {
+                await this.ensureConnected();
+                const targetRoom = (this.roomParam || "").trim().toUpperCase();
+                window.network.joinRoom(targetRoom, nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
+            } catch (err) {
+                console.error("Error conectando al servidor:", err);
+                if (this.connectionToast) {
+                    this.connectionToast.textContent = "⚠️ Conectando al servidor, intenta de nuevo en unos segundos...";
+                    this.connectionToast.classList.remove("hidden");
+                    setTimeout(() => this.connectionToast.classList.add("hidden"), 3000);
+                }
+            }
         });
 
         // Refresh rooms button
@@ -488,8 +497,17 @@ class UIManager {
             localStorage.setItem("chase_nickname", nick);
             localStorage.setItem("chase_character", this.selectedCharacter || "matias");
             localStorage.setItem("chase_gender", this.selectedGender || "boy");
-            await this.ensureConnected();
-            window.network.joinRoom(code, nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
+            try {
+                await this.ensureConnected();
+                window.network.joinRoom(code, nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
+            } catch (err) {
+                console.error("Error conectando al servidor:", err);
+                if (this.connectionToast) {
+                    this.connectionToast.textContent = "⚠️ Conectando al servidor, intenta de nuevo en unos segundos...";
+                    this.connectionToast.classList.remove("hidden");
+                    setTimeout(() => this.connectionToast.classList.add("hidden"), 3000);
+                }
+            }
         });
 
         // Start Game
@@ -779,8 +797,17 @@ class UIManager {
         localStorage.setItem("chase_nickname", nick);
         localStorage.setItem("chase_character", this.selectedCharacter || "matias");
         localStorage.setItem("chase_gender", this.selectedGender || "boy");
-        await this.ensureConnected();
-        window.network.joinRoom(roomId, nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
+        try {
+            await this.ensureConnected();
+            window.network.joinRoom(roomId, nick, this.selectedGender || "boy", this.selectedCharacter || "matias");
+        } catch (err) {
+            console.error("Error conectando a sala activa:", err);
+            if (this.connectionToast) {
+                this.connectionToast.textContent = "⚠️ Conectando al servidor, intenta de nuevo en unos segundos...";
+                this.connectionToast.classList.remove("hidden");
+                setTimeout(() => this.connectionToast.classList.add("hidden"), 3000);
+            }
+        }
     }
 
     bindNetworkEvents() {
@@ -898,10 +925,12 @@ class UIManager {
             if (window.crazyGamesService) {
                 window.crazyGamesService.gameplayStart();
             }
+            this.lobbyScreen.classList.add("hidden");
             this.waitingScreen.classList.add("hidden");
             this.topBar.classList.remove("hidden");
             this.taskChecklist.classList.remove("hidden");
             this.actionControls.classList.remove("hidden");
+            window.gameEngine.gameState = "PLAYING";
 
             window.gameEngine.assignedTasks = data.assigned_tasks;
             this.renderTaskList(data.assigned_tasks);

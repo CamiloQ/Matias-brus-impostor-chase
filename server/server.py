@@ -243,14 +243,14 @@ async def handle_ws_message(writer, msg_str):
                 )
                 return
 
-                # Name collision handling: Disambiguate if name already exists
-                existing_names = [p.name.strip().lower() for p in room.players.values()]
-                if player_name.lower() in existing_names:
-                    player_name = f"{player_name} {len(room.players) + 1}"
+            # Name collision handling: Disambiguate if name already exists
+            existing_names = [p.name.strip().lower() for p in room.players.values()]
+            if player_name.lower() in existing_names:
+                player_name = f"{player_name} {len(room.players) + 1}"
 
-                player = room.add_player(
-                    player_id, player_name, gender=player_gender, character=player_character
-                )
+            player = room.add_player(
+                player_id, player_name, gender=player_gender, character=player_character
+            )
 
         conn_info["room_id"] = target_room_id
 
@@ -669,9 +669,14 @@ async def handle_connection(reader, writer):
                 if opcode == OP_CLOSE:
                     break
                 elif opcode == OP_TEXT:
-                    await handle_ws_message(
-                        writer, payload.decode("utf-8", errors="ignore")
-                    )
+                    try:
+                        await handle_ws_message(
+                            writer, payload.decode("utf-8", errors="ignore")
+                        )
+                    except Exception as e:
+                        import traceback
+                        print(f"[WS ERROR]: {e}", flush=True)
+                        traceback.print_exc()
                 elif opcode == OP_PING:
                     writer.write(bytes([0x8A, 0x00]))
                     await writer.drain()

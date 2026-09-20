@@ -17,7 +17,10 @@ class CrazyGamesService {
         if (typeof window.CrazyGames !== "undefined" && window.CrazyGames.SDK) {
             try {
                 this.sdk = window.CrazyGames.SDK;
-                await this.sdk.init();
+                await Promise.race([
+                    this.sdk.init(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout inicializando CrazyGames SDK")), 2500))
+                ]);
                 this.initialized = true;
                 this.isCrazyGames = true;
                 console.log("[CrazyGames] SDK v3 inicializado correctamente.");
