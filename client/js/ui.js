@@ -23,9 +23,9 @@ class UIManager {
         this.taskInterval = null;
 
         // Customization State
-        this.selectedHat = "mini_matias";
-        this.selectedSkin = "onesie_tie";
-        this.selectedWeapon = "pan";
+        this.selectedHat = localStorage.getItem("chase_hat") || "mini_matias";
+        this.selectedSkin = localStorage.getItem("chase_skin") || "onesie_tie";
+        this.selectedWeapon = localStorage.getItem("chase_weapon") || "pan";
         this.catalogs = { hats: [], skins: [], weapons: [] };
 
         // Song Battle State
@@ -1187,6 +1187,11 @@ class UIManager {
     }
 
     saveWardrobe() {
+        try {
+            localStorage.setItem("chase_hat", this.selectedHat);
+            localStorage.setItem("chase_skin", this.selectedSkin);
+            localStorage.setItem("chase_weapon", this.selectedWeapon);
+        } catch (e) {}
         window.network.send({
             type: "update_wardrobe",
             character: this.selectedCharacter,
