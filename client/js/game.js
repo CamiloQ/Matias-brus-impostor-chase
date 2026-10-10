@@ -3646,6 +3646,10 @@ class GameEngine {
             ctx.arc(0, 6 + walkOffset * 0.5, 10, 0.2 * Math.PI, 0.8 * Math.PI);
             ctx.stroke();
 
+            // Custom Skin Outfit Overlay
+            const effectiveSkin = p.skin || "onesie_tie";
+            this.drawSkin(ctx, effectiveSkin, suitColor, suitShade, walkOffset);
+
             // 6. 3D FACE WITH CHARACTER SPECIFICITY
             const faceGrad = ctx.createRadialGradient(-3, -12 + walkOffset * 0.5, 2, 0, -10 + walkOffset * 0.5, 13);
             if (charKey === "fantasma") {
@@ -4204,6 +4208,102 @@ class GameEngine {
         ctx.restore();
     }
 
+    drawSkin(ctx, skinId, suitColor, suitShade, walkOffset) {
+        ctx.save();
+        if (skinId === "yrorsio_suit") {
+            // Elegant Dark Tuxedo Jacket
+            ctx.fillStyle = "#0f172a";
+            ctx.beginPath();
+            ctx.arc(0, 1 + walkOffset * 0.5, 17.5, 0.15 * Math.PI, 0.85 * Math.PI);
+            ctx.fill();
+            // White V-neck shirt
+            ctx.fillStyle = "#f8fafc";
+            ctx.beginPath();
+            ctx.moveTo(-6, -10 + walkOffset * 0.5);
+            ctx.lineTo(0, 4 + walkOffset * 0.5);
+            ctx.lineTo(6, -10 + walkOffset * 0.5);
+            ctx.closePath();
+            ctx.fill();
+            // Red Silk Tie
+            ctx.fillStyle = "#dc2626";
+            ctx.beginPath();
+            ctx.moveTo(0, -8 + walkOffset * 0.5);
+            ctx.lineTo(-2.5, -4 + walkOffset * 0.5);
+            ctx.lineTo(0, 8 + walkOffset * 0.5);
+            ctx.lineTo(2.5, -4 + walkOffset * 0.5);
+            ctx.closePath();
+            ctx.fill();
+            // Lapels
+            ctx.strokeStyle = "#334155";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-6, -10 + walkOffset * 0.5); ctx.lineTo(-2, 2 + walkOffset * 0.5);
+            ctx.moveTo(6, -10 + walkOffset * 0.5); ctx.lineTo(2, 2 + walkOffset * 0.5);
+            ctx.stroke();
+        } else if (skinId === "cyber_suit") {
+            // Cybernetic Armor Plates
+            ctx.strokeStyle = "#00f2fe";
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.moveTo(-11, -5 + walkOffset * 0.5);
+            ctx.lineTo(-4, -10 + walkOffset * 0.5);
+            ctx.lineTo(4, -10 + walkOffset * 0.5);
+            ctx.lineTo(11, -5 + walkOffset * 0.5);
+            ctx.lineTo(7, 8 + walkOffset * 0.5);
+            ctx.lineTo(-7, 8 + walkOffset * 0.5);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.fillStyle = "rgba(0, 242, 254, 0.15)";
+            ctx.fill();
+            // Glowing chest line
+            ctx.strokeStyle = "#ff007f";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-8, 0 + walkOffset * 0.5);
+            ctx.lineTo(8, 0 + walkOffset * 0.5);
+            ctx.stroke();
+        } else if (skinId === "sport_suit") {
+            // Racing stripes
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-12, -8 + walkOffset * 0.5); ctx.lineTo(-14, 12 + walkOffset * 0.5);
+            ctx.moveTo(12, -8 + walkOffset * 0.5); ctx.lineTo(14, 12 + walkOffset * 0.5);
+            ctx.stroke();
+            ctx.strokeStyle = "#facc15";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-9, -8 + walkOffset * 0.5); ctx.lineTo(-11, 12 + walkOffset * 0.5);
+            ctx.moveTo(9, -8 + walkOffset * 0.5); ctx.lineTo(11, 12 + walkOffset * 0.5);
+            ctx.stroke();
+        } else if (skinId === "ninja_suit") {
+            // Ninja Sash / Obi
+            ctx.fillStyle = "#1e1b4b";
+            ctx.beginPath();
+            ctx.arc(0, 1 + walkOffset * 0.5, 17.5, 0.3 * Math.PI, 0.7 * Math.PI);
+            ctx.fill();
+            // Red Sash Belt
+            ctx.fillStyle = "#b91c1c";
+            ctx.fillRect(-14, 4 + walkOffset * 0.5, 28, 5);
+            // Gold Obi emblem
+            ctx.fillStyle = "#f59e0b";
+            ctx.beginPath();
+            ctx.arc(0, 6.5 + walkOffset * 0.5, 3, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // onesie_tie / default: Red Tie Accent at collar
+            ctx.fillStyle = "#ef4444";
+            ctx.beginPath();
+            ctx.moveTo(0, -5 + walkOffset * 0.5);
+            ctx.lineTo(-2.5, -1 + walkOffset * 0.5);
+            ctx.lineTo(0, 6 + walkOffset * 0.5);
+            ctx.lineTo(2.5, -1 + walkOffset * 0.5);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
     drawHat(ctx, hatId, x, y) {
         ctx.save();
         ctx.translate(x, y);
@@ -4418,6 +4518,20 @@ class GameEngine {
             ctx.fillStyle = "#ff3366";
             ctx.beginPath();
             ctx.arc(0, -18, 5, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (hatId === "green_antenna") {
+            // Alien antenna with glowing neon green light
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 0); ctx.lineTo(0, -16); ctx.stroke();
+            ctx.fillStyle = "#22c55e";
+            ctx.beginPath();
+            ctx.arc(0, -18, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "rgba(74, 222, 128, 0.4)";
+            ctx.beginPath();
+            ctx.arc(0, -18, 8, 0, Math.PI * 2);
             ctx.fill();
         } else if (hatId === "crown") {
             // Golden Crown
