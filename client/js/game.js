@@ -316,7 +316,29 @@ class GameEngine {
         this.carnivorousPlants = snapshot.carnivorous_plants || [];
         this.lightOrbs = snapshot.orbs || [];
         this.invisButtons = snapshot.invis_buttons || [];
-        this.cloneImpostors = snapshot.clones || [];
+        const prevClones = new Map((this.cloneImpostors || []).map(c => [c.id, c]));
+        this.cloneImpostors = (snapshot.clones || []).map(cData => {
+            const existing = prevClones.get(cData.id);
+            if (!existing) {
+                return {
+                    ...cData,
+                    targetX: cData.x,
+                    targetY: cData.y,
+                    renderX: cData.x,
+                    renderY: cData.y,
+                    walkAnim: 0
+                };
+            }
+            return {
+                ...existing,
+                ...cData,
+                targetX: cData.x,
+                targetY: cData.y,
+                renderX: (existing.renderX === undefined || isNaN(existing.renderX)) ? cData.x : existing.renderX,
+                renderY: (existing.renderY === undefined || isNaN(existing.renderY)) ? cData.y : existing.renderY,
+                walkAnim: existing.walkAnim || 0
+            };
+        });
         this.collectibles = snapshot.collectibles || [];
 
         const activeIds = new Set();
@@ -567,6 +589,23 @@ class GameEngine {
             }
         });
 
+        this.cloneImpostors.forEach(cl => {
+            if (cl.targetX !== undefined) {
+                if (isNaN(cl.renderX) || cl.renderX === undefined) cl.renderX = cl.targetX;
+                if (isNaN(cl.renderY) || cl.renderY === undefined) cl.renderY = cl.targetY;
+                cl.renderX += (cl.targetX - cl.renderX) * 0.3;
+                cl.renderY += (cl.targetY - cl.renderY) * 0.3;
+            } else {
+                cl.renderX = cl.x;
+                cl.renderY = cl.y;
+            }
+            if (Math.hypot(cl.vx || 0, cl.vy || 0) > 10) {
+                cl.walkAnim = (cl.walkAnim || 0) + dt * 12;
+            } else {
+                cl.walkAnim = 0;
+            }
+        });
+
         // Update Brus Companion (Koira-inspired reactive companion dynamics)
         if (this.brusCompanion && this.gameState === "PLAYING") {
             const brus = this.brusCompanion;
@@ -623,10 +662,12 @@ class GameEngine {
                 if (!threatFound) {
                     for (let cl of this.cloneImpostors) {
                         if (cl.alive) {
-                            const clDist = Math.hypot(cl.x - brus.x, cl.y - brus.y);
+                            const clX = cl.renderX ?? cl.x;
+                            const clY = cl.renderY ?? cl.y;
+                            const clDist = Math.hypot(clX - brus.x, clY - brus.y);
                             if (clDist < 230) {
                                 threatFound = true;
-                                threatAngle = Math.atan2(cl.y - brus.y, cl.x - brus.x);
+                                threatAngle = Math.atan2(clY - brus.y, clX - brus.x);
                                 break;
                             }
                         }
@@ -2374,8 +2415,8 @@ class GameEngine {
         // 7. CLONE IMPOSTORS RED EVIL GLOW
         this.cloneImpostors.forEach(clone => {
             if (!clone.alive) return;
-            const clx = toLX(clone.x);
-            const cly = toLY(clone.y);
+            const clx = toLX(clone.renderX ?? clone.x);
+            const cly = toLY(clone.renderY ?? clone.y);
             const clGrad = lCtx.createRadialGradient(clx, cly, 2 * scaleX, clx, cly, 75 * scaleX);
             clGrad.addColorStop(0, "rgba(255, 51, 102, 0.85)");
             clGrad.addColorStop(1, "rgba(255, 51, 102, 0)");
@@ -2884,48 +2925,12 @@ class GameEngine {
     drawCloneImpostors(ctx) {
         this.cloneImpostors.forEach(clone => {
             if (!clone.alive) return;
-
-            ctx.save();
-            ctx.translate(clone.x, clone.y);
-
-            // Shadow
-            ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-            ctx.beginPath();
-            ctx.ellipse(0, 20, 18, 8, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Clone Body
-            const bodyColor = clone.color?.hex || "#e74c3c";
-            ctx.fillStyle = bodyColor;
-            ctx.beginPath();
-            ctx.arc(0, 0, 18, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Tie
-            ctx.fillStyle = "#2c3e50";
-            ctx.fillRect(-3, 0, 6, 14);
-
-            // Red Evil Visor
-            ctx.fillStyle = "#ff3366";
-            ctx.beginPath();
-            ctx.ellipse(6, -2, 10, 7, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Hat
-            this.drawHat(ctx, clone.hat, 0, -18);
-
-            // Clone HP Bar & Label
-            ctx.fillStyle = "rgba(0,0,0,0.6)";
-            ctx.fillRect(-18, -36, 36, 5);
-            ctx.fillStyle = "#ff3366";
-            ctx.fillRect(-18, -36, (clone.hp / 120) * 36, 5);
-
-            ctx.font = "bold 12px 'Rajdhani', sans-serif";
-            ctx.fillStyle = "#ff3366";
-            ctx.textAlign = "center";
-            ctx.fillText(clone.name, 0, -42);
-
-            ctx.restore();
+            try {
+                this.drawCharacterSprite(ctx, clone, { isClone: true });
+            } catch (err) {
+                console.error("Error drawing clone impostor", clone.id, err);
+                try { ctx.restore(); } catch (e) {}
+            }
         });
     }
 
@@ -2936,637 +2941,688 @@ class GameEngine {
             try {
                 // 1. In-vent sewer crawling visualization (Paso por dentro de las alcantarillas)
                 if (p.in_vent) {
-                const canSeeVentPlayer = (p.id === this.myPlayerId) || (this.myRole === "impostor") || (me && !me.alive);
-                if (!canSeeVentPlayer) return;
+                    const canSeeVentPlayer = (p.id === this.myPlayerId) || (this.myRole === "impostor") || (me && !me.alive);
+                    if (!canSeeVentPlayer) return;
 
-                ctx.save();
-                ctx.translate(p.renderX, p.renderY);
+                    ctx.save();
+                    ctx.translate(p.renderX, p.renderY);
 
-                const crawlTime = Date.now() / 200;
-                const ripple = Math.sin(crawlTime) * 3;
+                    const crawlTime = Date.now() / 200;
+                    const ripple = Math.sin(crawlTime) * 3;
 
-                // Sewer water ripple around crawling player
-                ctx.strokeStyle = "rgba(52, 211, 153, 0.75)";
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(0, 0, 16 + Math.abs(ripple) * 2, 0, Math.PI * 2);
-                ctx.stroke();
-
-                // Crawling posture impostor (inside pipe)
-                ctx.fillStyle = "#1e293b";
-                ctx.beginPath();
-                ctx.ellipse(0, 0, 15, 11, 0, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Glowing visor
-                ctx.fillStyle = "#ff3366";
-                ctx.beginPath();
-                ctx.arc(5, -2, 4.5, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Flashlight beam illuminating sewer pipe interior
-                const beamGrad = ctx.createRadialGradient(5, -2, 2, 26, -2, 35);
-                beamGrad.addColorStop(0, "rgba(255, 51, 102, 0.75)");
-                beamGrad.addColorStop(1, "rgba(255, 51, 102, 0)");
-                ctx.fillStyle = beamGrad;
-                ctx.beginPath();
-                ctx.moveTo(5, -2);
-                ctx.lineTo(36, -14);
-                ctx.lineTo(36, 10);
-                ctx.closePath();
-                ctx.fill();
-
-                // Status tag
-                ctx.font = "bold 11px 'Orbitron', sans-serif";
-                ctx.fillStyle = "#c084fc";
-                ctx.textAlign = "center";
-                ctx.fillText("🕵️ DENTRO DE LA ALCANTARILLA", 0, -22);
-
-                if (p.id === this.myPlayerId) {
-                    ctx.fillStyle = "#facc15";
-                    ctx.font = "bold 9px 'Rajdhani', sans-serif";
-                    ctx.fillText("[V] Salir de la alcantarilla", 0, 24);
-                }
-
-                ctx.restore();
-                return;
-            }
-
-            // 2. Invisibility check
-            if (p.is_invisible) {
-                if (p.id !== this.myPlayerId && me && me.alive) {
-                    return; // Completely invisible to opponents!
-                }
-            }
-
-            ctx.save();
-            ctx.translate(p.renderX, p.renderY);
-
-            const charKey = (p.character || "matias").toLowerCase();
-            const theme = CHARACTER_THEMES[charKey] || (p.color ? { suitColor: p.color.hex, suitShade: "#1d4ed8", light: "#ffffff", pocket: "rgba(0,0,0,0.2)" } : CHARACTER_THEMES.matias);
-            const isGirl = (p.gender === "girl");
-            const isMatias = (charKey === "matias" || p.name.toLowerCase().includes("matias"));
-            const suitColor = theme.suitColor;
-            const suitShade = theme.suitShade;
-            const walkOffset = Math.sin(p.walkAnim || 0) * 4;
-
-            // Invisibility translucent cloaked figure for local player
-            if (p.is_invisible) {
-                ctx.globalAlpha = 0.35;
-
-                // Holographic electric cloaking grid rings
-                ctx.strokeStyle = "rgba(0, 242, 254, 0.7)";
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.arc(0, 0, 22, 0, Math.PI * 2);
-                ctx.stroke();
-            } else if (!p.alive) {
-                ctx.globalAlpha = 0.55;
-            }
-
-            // 1. Drop Shadow 3D
-            ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-            ctx.beginPath();
-            ctx.ellipse(0, 22, 18, 7, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Cat tail for Gato Azul behind player
-            if (charKey === "gato_azul") {
-                const tailWag = Math.sin((p.walkAnim || 0) * 1.5 + Date.now() / 250) * 8;
-                ctx.strokeStyle = suitColor;
-                ctx.lineWidth = 5.5;
-                ctx.lineCap = "round";
-                ctx.beginPath();
-                ctx.moveTo(-10, 8 + walkOffset * 0.3);
-                ctx.bezierCurveTo(-22 + tailWag, 2, -26 + tailWag * 1.4, -6, -24 + tailWag, -12);
-                ctx.stroke();
-                // White tip of cat tail
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 4.5;
-                ctx.beginPath();
-                ctx.moveTo(-25 + tailWag * 1.2, -8);
-                ctx.lineTo(-24 + tailWag, -12);
-                ctx.stroke();
-            }
-
-            // 2. Backpack / Oxygen tank with shading
-            ctx.fillStyle = suitShade;
-            ctx.fillRect(-22, -10 + walkOffset * 0.5, 7, 18);
-
-            // 3. LEGS: 3D SUIT
-            // Left leg
-            ctx.fillStyle = suitColor;
-            ctx.fillRect(-12, 10 + walkOffset, 9, 11);
-            // Right leg with shadow depth
-            ctx.fillStyle = suitShade;
-            ctx.fillRect(3, 10 - walkOffset, 9, 11);
-
-            // Crease seam lines on suit
-            ctx.strokeStyle = theme.pocket || "rgba(0,0,0,0.3)";
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.moveTo(0, 10);
-            ctx.lineTo(0, 18);
-            ctx.stroke();
-
-            // 4. SNEAKERS: WHITE 3D (ZAPATOS BLANCOS CON SUELA Y CORDONES)
-            // Left sneaker
-            ctx.fillStyle = "#64748b"; // rubber sole
-            ctx.fillRect(-14, 21 + walkOffset, 12, 3);
-            ctx.fillStyle = "#ffffff"; // clean white body
-            ctx.beginPath();
-            ctx.ellipse(-8, 19 + walkOffset, 6, 4, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = "#94a3b8"; // laces
-            ctx.fillRect(-10, 18 + walkOffset, 4, 1.5);
-
-            // Right sneaker
-            ctx.fillStyle = "#475569"; // sole
-            ctx.fillRect(1, 21 - walkOffset, 12, 3);
-            ctx.fillStyle = "#f8fafc"; // body
-            ctx.beginPath();
-            ctx.ellipse(7, 19 - walkOffset, 6, 4, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = "#94a3b8"; // laces
-            ctx.fillRect(5, 18 - walkOffset, 4, 1.5);
-
-            // 5. TORSO: SUIT WITH 3D SPHERICAL SHADING, DISTINCT BADGE & METALLIC ZIPPER
-            const torsoGrad = ctx.createRadialGradient(-5, -4 + walkOffset * 0.5, 3, 0, 1 + walkOffset * 0.5, 19);
-            torsoGrad.addColorStop(0, theme.light || "#ffffff");
-            torsoGrad.addColorStop(0.35, suitColor);
-            torsoGrad.addColorStop(1, suitShade);
-            ctx.fillStyle = torsoGrad;
-            ctx.beginPath();
-            ctx.arc(0, 1 + walkOffset * 0.5, 18, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Chest Badge specific to character
-            const badgeX = -7;
-            const badgeY = 1 + walkOffset * 0.5;
-            ctx.save();
-            ctx.translate(badgeX, badgeY);
-
-            if (charKey === "matias") {
-                // Golden Star
-                ctx.fillStyle = "#ffd600";
-                ctx.strokeStyle = "#d97706";
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                for (let i = 0; i < 5; i++) {
-                    ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 4.5, -Math.sin((18 + i * 72) * Math.PI / 180) * 4.5);
-                    ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 2.2, -Math.sin((54 + i * 72) * Math.PI / 180) * 2.2);
-                }
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-            } else if (charKey === "fantasma") {
-                // Cyan Cyber Arc Reactor / Core
-                ctx.fillStyle = "#00f2fe";
-                ctx.beginPath();
-                ctx.arc(0, 0, 4, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.arc(0, 0, 2, 0, Math.PI * 2);
-                ctx.stroke();
-            } else if (charKey === "gato_azul") {
-                // White Cat Paw Print
-                ctx.fillStyle = "#ffffff";
-                ctx.beginPath();
-                ctx.arc(0, 1, 2.5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(-2.5, -2, 1.2, 0, Math.PI * 2);
-                ctx.arc(0, -3.2, 1.2, 0, Math.PI * 2);
-                ctx.arc(2.5, -2, 1.2, 0, Math.PI * 2);
-                ctx.fill();
-            } else if (charKey === "reina_flor") {
-                // Pink Blossom Flower
-                ctx.fillStyle = "#f472b6";
-                for (let i = 0; i < 5; i++) {
-                    const ang = i * (Math.PI * 2 / 5);
+                    // Sewer water ripple around crawling player
+                    ctx.strokeStyle = "rgba(52, 211, 153, 0.75)";
+                    ctx.lineWidth = 2;
                     ctx.beginPath();
-                    ctx.arc(Math.cos(ang) * 2.8, Math.sin(ang) * 2.8, 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                ctx.fillStyle = "#fef08a";
-                ctx.beginPath();
-                ctx.arc(0, 0, 1.8, 0, Math.PI * 2);
-                ctx.fill();
-            } else if (charKey === "duende_verde") {
-                // Green 4-leaf Lucky Clover
-                ctx.fillStyle = "#4ade80";
-                for (let i = 0; i < 4; i++) {
-                    const ang = i * (Math.PI / 2);
+                    ctx.arc(0, 0, 16 + Math.abs(ripple) * 2, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // Crawling posture impostor (inside pipe)
+                    ctx.fillStyle = "#1e293b";
                     ctx.beginPath();
-                    ctx.arc(Math.cos(ang) * 2.4, Math.sin(ang) * 2.4, 1.8, 0, Math.PI * 2);
+                    ctx.ellipse(0, 0, 15, 11, 0, 0, Math.PI * 2);
                     ctx.fill();
-                }
-                ctx.fillStyle = "#15803d";
-                ctx.beginPath();
-                ctx.arc(0, 0, 1.2, 0, Math.PI * 2);
-                ctx.fill();
-            } else if (charKey === "granjero_rojo") {
-                // Golden Wheat Sheaf
-                ctx.strokeStyle = "#fef08a";
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.moveTo(-1, 4); ctx.lineTo(1, -4);
-                ctx.stroke();
-                ctx.fillStyle = "#fde047";
-                ctx.beginPath();
-                ctx.ellipse(2, -2, 1.5, 2.5, 0.4, 0, Math.PI * 2);
-                ctx.ellipse(-1, 0, 1.5, 2.5, -0.4, 0, Math.PI * 2);
-                ctx.fill();
-            } else if (charKey === "sanador_naranja") {
-                // White Medical Cross
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(-1.5, -4, 3, 8);
-                ctx.fillRect(-4, -1.5, 8, 3);
-            } else if (charKey === "nina_blanca") {
-                // Ethereal Lavender Butterfly
-                ctx.fillStyle = "#c084fc";
-                ctx.beginPath();
-                ctx.ellipse(-2.5, -1.5, 2.2, 3, -0.4, 0, Math.PI * 2);
-                ctx.ellipse(2.5, -1.5, 2.2, 3, 0.4, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = "#f472b6";
-                ctx.beginPath();
-                ctx.arc(0, 0, 1.3, 0, Math.PI * 2);
-                ctx.fill();
-            } else if (charKey === "mistico_uva") {
-                // Golden Crescent Moon
-                ctx.fillStyle = "#fde047";
-                ctx.beginPath();
-                ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = theme.suitColor;
-                ctx.beginPath();
-                ctx.arc(1.5, -1, 3.2, 0, Math.PI * 2);
-                ctx.fill();
-            } else if (charKey === "mago_negro") {
-                // Arcane Violet Diamond / Rune
-                ctx.fillStyle = "#c084fc";
-                ctx.beginPath();
-                ctx.moveTo(0, -4.5); ctx.lineTo(3.5, 0); ctx.lineTo(0, 4.5); ctx.lineTo(-3.5, 0);
-                ctx.closePath();
-                ctx.fill();
-                ctx.strokeStyle = "#e879f9";
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            } else if (charKey === "ciclope_astral") {
-                // Radiant Cosmic Starburst
-                ctx.fillStyle = "#38bdf8";
-                ctx.beginPath();
-                ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = "#38bdf8";
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(0, -5); ctx.lineTo(0, 5);
-                ctx.moveTo(-5, 0); ctx.lineTo(5, 0);
-                ctx.stroke();
-            } else {
-                ctx.fillStyle = "#ffd600";
-                ctx.beginPath();
-                ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            ctx.restore();
 
-            // Metallic Front Zipper (Cierre metálico)
-            ctx.strokeStyle = "#334155";
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(0, -6 + walkOffset * 0.5);
-            ctx.lineTo(0, 14 + walkOffset * 0.5);
-            ctx.stroke();
-
-            // Silver Zipper Teeth dashes
-            ctx.strokeStyle = "#ffffff";
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.setLineDash([2, 2]);
-            ctx.moveTo(0, -6 + walkOffset * 0.5);
-            ctx.lineTo(0, 14 + walkOffset * 0.5);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Zipper Puller Slider (Tirador de la cremallera)
-            ctx.fillStyle = "#cbd5e1";
-            ctx.fillRect(-2, 2 + walkOffset * 0.5, 4, 5);
-            ctx.fillStyle = "#1e293b";
-            ctx.fillRect(-1, 5 + walkOffset * 0.5, 2, 2);
-
-            // Kangaroo Pockets
-            ctx.strokeStyle = theme.pocket || "rgba(0,0,0,0.2)";
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.arc(0, 6 + walkOffset * 0.5, 10, 0.2 * Math.PI, 0.8 * Math.PI);
-            ctx.stroke();
-
-            // Custom Skin Outfit Overlay
-            const effectiveSkin = p.skin || "onesie_tie";
-            this.drawSkin(ctx, effectiveSkin, suitColor, suitShade, walkOffset);
-
-            // 6. 3D FACE WITH CHARACTER SPECIFICITY
-            const faceGrad = ctx.createRadialGradient(-3, -12 + walkOffset * 0.5, 2, 0, -10 + walkOffset * 0.5, 13);
-            if (charKey === "fantasma") {
-                faceGrad.addColorStop(0, "#f8fafc");
-                faceGrad.addColorStop(0.5, "#e2e8f0");
-                faceGrad.addColorStop(1, "#cbd5e1");
-            } else {
-                faceGrad.addColorStop(0, "#fff5eb");
-                faceGrad.addColorStop(0.5, "#ffdfba");
-                faceGrad.addColorStop(1, "#f5c596");
-            }
-            ctx.fillStyle = faceGrad;
-            ctx.beginPath();
-            ctx.arc(0, -10 + walkOffset * 0.5, 12, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Rosy cheeks (except for cyber/robotic entities)
-            if (charKey !== "fantasma" && charKey !== "ciclope_astral") {
-                ctx.fillStyle = "rgba(248, 113, 113, 0.45)";
-                ctx.beginPath();
-                ctx.arc(-7, -7 + walkOffset * 0.5, 3, 0, Math.PI * 2);
-                ctx.arc(7, -7 + walkOffset * 0.5, 3, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // Eyes / Visor Rendering
-            if (charKey === "ciclope_astral") {
-                // Large single cyclops cosmic eye
-                const eyeY = -10 + walkOffset * 0.5;
-                ctx.fillStyle = "#ffffff";
-                ctx.beginPath();
-                ctx.arc(0, eyeY, 6.5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = "#38bdf8";
-                ctx.lineWidth = 1.6;
-                ctx.stroke();
-
-                const irisGrad = ctx.createRadialGradient(0, eyeY, 1, 0, eyeY, 4.5);
-                irisGrad.addColorStop(0, "#38bdf8");
-                irisGrad.addColorStop(0.5, "#6366f1");
-                irisGrad.addColorStop(1, "#0f172a");
-                ctx.fillStyle = irisGrad;
-                ctx.beginPath();
-                ctx.arc(0, eyeY, 4.5, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = "#020617";
-                ctx.beginPath();
-                ctx.arc(0, eyeY, 2.2, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = "#ffffff";
-                ctx.beginPath();
-                ctx.arc(1.2, eyeY - 1.5, 1.2, 0, Math.PI * 2);
-                ctx.fill();
-            } else if (charKey === "fantasma") {
-                // Cybernetic visor across eyes
-                const visorY = -11 + walkOffset * 0.5;
-                ctx.fillStyle = "#0f172a";
-                ctx.fillRect(-8, visorY - 3, 16, 6);
-                ctx.fillStyle = "#00f2fe";
-                ctx.fillRect(-7, visorY - 2, 14, 4);
-                // Visor scanning light
-                const scanX = Math.sin(Date.now() / 200) * 4.5;
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(scanX - 1.5, visorY - 2, 3, 4);
-            } else if (charKey === "mago_negro") {
-                // Mystical glowing violet eyes
-                const eyeY = -10 + walkOffset * 0.5;
-                ctx.fillStyle = "#c084fc";
-                ctx.beginPath();
-                ctx.ellipse(-4, eyeY, 2.5, 4, 0, 0, Math.PI * 2);
-                ctx.ellipse(4, eyeY, 2.5, 4, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = "#ffffff";
-                ctx.beginPath();
-                ctx.arc(-4, eyeY - 1, 1, 0, Math.PI * 2);
-                ctx.arc(4, eyeY - 1, 1, 0, Math.PI * 2);
-                ctx.fill();
-            } else {
-                // Standard expressive cartoon eyes
-                ctx.fillStyle = "#ffffff";
-                ctx.beginPath();
-                ctx.ellipse(-4, -10 + walkOffset * 0.5, 3.5, 5, 0, 0, Math.PI * 2);
-                ctx.ellipse(4, -10 + walkOffset * 0.5, 3.5, 5, 0, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = "#1e293b";
-                ctx.beginPath();
-                ctx.arc(-3.5, -10 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
-                ctx.arc(4.5, -10 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = "#ffffff";
-                ctx.beginPath();
-                ctx.arc(-4, -11 + walkOffset * 0.5, 1, 0, Math.PI * 2);
-                ctx.arc(4, -11 + walkOffset * 0.5, 1, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // Gato Azul Cat Whiskers and Nose
-            if (charKey === "gato_azul") {
-                ctx.strokeStyle = "#1e293b";
-                ctx.lineWidth = 1.2;
-                ctx.beginPath();
-                ctx.moveTo(-5, -6 + walkOffset * 0.5); ctx.lineTo(-13, -8 + walkOffset * 0.5);
-                ctx.moveTo(-5, -5 + walkOffset * 0.5); ctx.lineTo(-13, -4 + walkOffset * 0.5);
-                ctx.moveTo(5, -6 + walkOffset * 0.5); ctx.lineTo(13, -8 + walkOffset * 0.5);
-                ctx.moveTo(5, -5 + walkOffset * 0.5); ctx.lineTo(13, -4 + walkOffset * 0.5);
-                ctx.stroke();
-
-                ctx.fillStyle = "#f472b6";
-                ctx.beginPath();
-                ctx.arc(0, -6 + walkOffset * 0.5, 1.8, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // Duende Verde Pointed Elf Ears
-            if (charKey === "duende_verde") {
-                ctx.fillStyle = "#22c55e";
-                ctx.beginPath();
-                ctx.moveTo(-11, -11 + walkOffset * 0.5);
-                ctx.lineTo(-17, -15 + walkOffset * 0.5);
-                ctx.lineTo(-11, -7 + walkOffset * 0.5);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.moveTo(11, -11 + walkOffset * 0.5);
-                ctx.lineTo(17, -15 + walkOffset * 0.5);
-                ctx.lineTo(11, -7 + walkOffset * 0.5);
-                ctx.fill();
-            }
-
-            // Místico Uva Third Eye Gem
-            if (charKey === "mistico_uva") {
-                ctx.fillStyle = "#d946ef";
-                ctx.beginPath();
-                ctx.arc(0, -17 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // GENDER & HAIR DIFFERENTIATION
-            if (isGirl) {
-                // Eyelashes (Pestañas)
-                ctx.strokeStyle = "#1e293b";
-                ctx.lineWidth = 1.2;
-                ctx.beginPath();
-                ctx.moveTo(-7, -13 + walkOffset * 0.5);
-                ctx.lineTo(-9, -15 + walkOffset * 0.5);
-                ctx.moveTo(-5, -14 + walkOffset * 0.5);
-                ctx.lineTo(-6, -17 + walkOffset * 0.5);
-                ctx.moveTo(7, -13 + walkOffset * 0.5);
-                ctx.lineTo(9, -15 + walkOffset * 0.5);
-                ctx.moveTo(5, -14 + walkOffset * 0.5);
-                ctx.lineTo(6, -17 + walkOffset * 0.5);
-                ctx.stroke();
-
-                // Twintails / Pigtails
-                const pigtailBounce = Math.sin((p.walkAnim || 0) * 1.5) * 3;
-                ctx.fillStyle = (charKey === "nina_blanca") ? "#e2e8f0" : "#5a3825";
-                ctx.beginPath();
-                ctx.ellipse(-14, -10 + walkOffset * 0.5 + pigtailBounce, 5, 10, -0.4, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.ellipse(14, -10 + walkOffset * 0.5 - pigtailBounce, 5, 10, 0.4, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Bows
-                ctx.fillStyle = (charKey === "reina_flor") ? "#f472b6" : "#fd79a8";
-                ctx.beginPath();
-                ctx.arc(-13, -15 + walkOffset * 0.5 + pigtailBounce, 3, 0, Math.PI * 2);
-                ctx.arc(13, -15 + walkOffset * 0.5 - pigtailBounce, 3, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Bangs
-                ctx.fillStyle = (charKey === "nina_blanca") ? "#e2e8f0" : "#5a3825";
-                ctx.beginPath();
-                ctx.arc(0, -17 + walkOffset * 0.5, 10, 0.9 * Math.PI, 0.1 * Math.PI);
-                ctx.fill();
-            } else {
-                // Boyish spiky hair
-                ctx.fillStyle = (charKey === "fantasma") ? "#475569" : (charKey === "mago_negro" ? "#18181b" : "#362217");
-                ctx.beginPath();
-                ctx.arc(0, -18 + walkOffset * 0.5, 10, 0.8 * Math.PI, 0.2 * Math.PI);
-                ctx.lineTo(3, -24 + walkOffset * 0.5);
-                ctx.lineTo(-2, -21 + walkOffset * 0.5);
-                ctx.lineTo(-6, -23 + walkOffset * 0.5);
-                ctx.fill();
-            }
-
-            // Friendly Smile (when not disguised as impostor)
-            ctx.strokeStyle = "#991b1b";
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.arc(0, -6 + walkOffset * 0.5, 3.5, 0.1 * Math.PI, 0.9 * Math.PI);
-            ctx.stroke();
-
-            // 7. Hat on Head (with signature default fallback for each character)
-            const defaultHats = {
-                matias: "mini_matias",
-                fantasma: "microscope_bot",
-                gato_azul: "cat_mask",
-                reina_flor: "crown_flower",
-                duende_verde: "leprechaun_gold",
-                granjero_rojo: "straw_hat",
-                sanador_naranja: "healing_plant",
-                nina_blanca: "butterfly_bow",
-                mistico_uva: "alien_antennas",
-                mago_negro: "magic_tophat",
-                ciclope_astral: "cyclops_eye"
-            };
-            const effectiveHat = p.hat || defaultHats[charKey] || null;
-            this.drawHat(ctx, effectiveHat, 0, -22 + walkOffset * 0.5);
-
-            // 8. Weapon in Hand (with signature default fallback for each character)
-            const defaultWeapons = {
-                matias: "racket",
-                fantasma: "microscope",
-                gato_azul: "pan",
-                reina_flor: "magic_flower",
-                duende_verde: "gold_pot",
-                granjero_rojo: "wheat_fork",
-                sanador_naranja: "herbs_basket",
-                nina_blanca: "star_wand",
-                mistico_uva: "crystal_wand",
-                mago_negro: "magic_cane",
-                ciclope_astral: "crystal_orb"
-            };
-            const effectiveWeapon = p.weapon || defaultWeapons[charKey] || null;
-            this.drawWeapon(ctx, effectiveWeapon, 16, 6 + walkOffset * 0.5);
-
-            // Impostor Disguise Vapor Swirls (Only visible to local impostor)
-            if (p.is_disguised && p.id === this.myPlayerId) {
-                const sTime = Date.now() / 250;
-                for (let s = 0; s < 4; s++) {
-                    const sAngle = sTime + s * (Math.PI / 2);
-                    const sx = Math.cos(sAngle) * 20;
-                    const sy = Math.sin(sAngle) * 12 + 8;
-                    ctx.fillStyle = "rgba(168, 85, 247, 0.4)";
+                    // Glowing visor
+                    ctx.fillStyle = "#ff3366";
                     ctx.beginPath();
-                    ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+                    ctx.arc(5, -2, 4.5, 0, Math.PI * 2);
                     ctx.fill();
+
+                    // Flashlight beam illuminating sewer pipe interior
+                    const beamGrad = ctx.createRadialGradient(5, -2, 2, 26, -2, 35);
+                    beamGrad.addColorStop(0, "rgba(255, 51, 102, 0.75)");
+                    beamGrad.addColorStop(1, "rgba(255, 51, 102, 0)");
+                    ctx.fillStyle = beamGrad;
+                    ctx.beginPath();
+                    ctx.moveTo(5, -2);
+                    ctx.lineTo(36, -14);
+                    ctx.lineTo(36, 10);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Status tag
+                    ctx.font = "bold 11px 'Orbitron', sans-serif";
+                    ctx.fillStyle = "#c084fc";
+                    ctx.textAlign = "center";
+                    ctx.fillText("🕵️ DENTRO DE LA ALCANTARILLA", 0, -22);
+
+                    if (p.id === this.myPlayerId) {
+                        ctx.fillStyle = "#facc15";
+                        ctx.font = "bold 9px 'Rajdhani', sans-serif";
+                        ctx.fillText("[V] Salir de la alcantarilla", 0, 24);
+                    }
+
+                    ctx.restore();
+                    return;
                 }
 
-                ctx.font = "bold 11px 'Orbitron', sans-serif";
-                ctx.fillStyle = "#c084fc";
-                ctx.textAlign = "center";
-                ctx.fillText(`🎭 CAMUFLADO (${Math.ceil(p.disguise_timer || 0)}s)`, 0, -56);
-            }
+                // 2. Invisibility check
+                if (p.is_invisible) {
+                    if (p.id !== this.myPlayerId && me && me.alive) {
+                        return; // Completely invisible to opponents!
+                    }
+                }
 
-            // Invisibility indicator for local player
-            if (p.is_invisible && p.id === this.myPlayerId) {
-                ctx.font = "bold 11px 'Orbitron', sans-serif";
-                ctx.fillStyle = "#00f2fe";
-                ctx.textAlign = "center";
-                ctx.fillText(`👻 INVISIBLE (${Math.ceil(p.invis_time_left || 0)}s)`, 0, -70);
-            }
-
-            // HP Bar
-            if (p.alive) {
-                ctx.fillStyle = "rgba(0,0,0,0.6)";
-                ctx.fillRect(-16, -34, 32, 4);
-                ctx.fillStyle = p.hp > 40 ? "#00e676" : "#ff3366";
-                ctx.fillRect(-16, -34, (p.hp / 100) * 32, 4);
-            }
-
-            // Name Tag with Character Badge icon
-            ctx.globalAlpha = 1.0;
-            ctx.font = "bold 13px 'Rajdhani', sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillStyle = p.role === "impostor" ? "#ff3366" : "#ffffff";
-            const charIcons = {
-                matias: "👦 ",
-                fantasma: "🔬 ",
-                gato_azul: "🐱 ",
-                reina_flor: "🌸 ",
-                duende_verde: "🍀 ",
-                granjero_rojo: "🌾 ",
-                sanador_naranja: "🌿 ",
-                nina_blanca: "🦋 ",
-                mistico_uva: "🍇 ",
-                mago_negro: "🎩 ",
-                ciclope_astral: "🔮 "
-            };
-            const roleBadge = charIcons[charKey] || (isGirl ? "👧 " : "👦 ");
-            ctx.fillText(roleBadge + p.name, 0, -42);
-
-            if (p.id === this.myPlayerId) {
-                ctx.fillStyle = "#00d2ff";
-                ctx.fillText("▲ (TÚ)", 0, -54);
-            }
-
-            ctx.restore();
+                this.drawCharacterSprite(ctx, p, { isClone: false });
             } catch (err) {
                 console.error("Error drawing player", p.id, err);
                 try { ctx.restore(); } catch (e) {}
             }
         });
+    }
+
+    drawCharacterSprite(ctx, p, options = {}) {
+        const isClone = Boolean(options.isClone);
+        const rx = (p.renderX !== undefined && !isNaN(p.renderX)) ? p.renderX : p.x;
+        const ry = (p.renderY !== undefined && !isNaN(p.renderY)) ? p.renderY : p.y;
+
+        ctx.save();
+        ctx.translate(rx, ry);
+
+        const charKey = (p.character || "matias").toLowerCase();
+        const theme = CHARACTER_THEMES[charKey] || (p.color ? { suitColor: p.color.hex, suitShade: "#1d4ed8", light: "#ffffff", pocket: "rgba(0,0,0,0.2)" } : CHARACTER_THEMES.matias);
+        const isGirl = (p.gender === "girl");
+        const suitColor = theme.suitColor;
+        const suitShade = theme.suitShade;
+        const walkOffset = Math.sin(p.walkAnim || 0) * 4;
+        const now = Date.now();
+
+        // Invisibility translucent cloaked figure for local player
+        if (!isClone && p.is_invisible) {
+            ctx.globalAlpha = 0.35;
+
+            // Holographic electric cloaking grid rings
+            ctx.strokeStyle = "rgba(0, 242, 254, 0.7)";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, 22, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (!p.alive) {
+            ctx.globalAlpha = 0.55;
+        }
+
+        // 0. Holographic Clone Base Ring (if clone)
+        if (isClone) {
+            const pulse = Math.sin(now / 160) * 2.5;
+            ctx.save();
+            ctx.strokeStyle = "rgba(255, 51, 102, 0.7)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(0, 22, 20 + pulse, 8 + pulse * 0.3, 0, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.strokeStyle = "rgba(0, 242, 254, 0.45)";
+            ctx.lineWidth = 1.2;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.ellipse(0, 22, 23 - pulse * 0.5, 9.5, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+
+        // 1. Drop Shadow 3D
+        ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+        ctx.beginPath();
+        ctx.ellipse(0, 22, 18, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cat tail for Gato Azul behind player/clone
+        if (charKey === "gato_azul") {
+            const tailWag = Math.sin((p.walkAnim || 0) * 1.5 + now / 250) * 8;
+            ctx.strokeStyle = suitColor;
+            ctx.lineWidth = 5.5;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(-10, 8 + walkOffset * 0.3);
+            ctx.bezierCurveTo(-22 + tailWag, 2, -26 + tailWag * 1.4, -6, -24 + tailWag, -12);
+            ctx.stroke();
+            // White tip of cat tail
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 4.5;
+            ctx.beginPath();
+            ctx.moveTo(-25 + tailWag * 1.2, -8);
+            ctx.lineTo(-24 + tailWag, -12);
+            ctx.stroke();
+        }
+
+        // 2. Backpack / Oxygen tank with shading
+        ctx.fillStyle = suitShade;
+        ctx.fillRect(-22, -10 + walkOffset * 0.5, 7, 18);
+
+        // 3. LEGS: 3D SUIT
+        // Left leg
+        ctx.fillStyle = suitColor;
+        ctx.fillRect(-12, 10 + walkOffset, 9, 11);
+        // Right leg with shadow depth
+        ctx.fillStyle = suitShade;
+        ctx.fillRect(3, 10 - walkOffset, 9, 11);
+
+        // Crease seam lines on suit
+        ctx.strokeStyle = theme.pocket || "rgba(0,0,0,0.3)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(0, 10);
+        ctx.lineTo(0, 18);
+        ctx.stroke();
+
+        // 4. SNEAKERS: WHITE 3D (ZAPATOS BLANCOS CON SUELA Y CORDONES)
+        // Left sneaker
+        ctx.fillStyle = "#64748b"; // rubber sole
+        ctx.fillRect(-14, 21 + walkOffset, 12, 3);
+        ctx.fillStyle = "#ffffff"; // clean white body
+        ctx.beginPath();
+        ctx.ellipse(-8, 19 + walkOffset, 6, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#94a3b8"; // laces
+        ctx.fillRect(-10, 18 + walkOffset, 4, 1.5);
+
+        // Right sneaker
+        ctx.fillStyle = "#475569"; // sole
+        ctx.fillRect(1, 21 - walkOffset, 12, 3);
+        ctx.fillStyle = "#f8fafc"; // body
+        ctx.beginPath();
+        ctx.ellipse(7, 19 - walkOffset, 6, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#94a3b8"; // laces
+        ctx.fillRect(5, 18 - walkOffset, 4, 1.5);
+
+        // 5. TORSO: SUIT WITH 3D SPHERICAL SHADING, DISTINCT BADGE & METALLIC ZIPPER
+        const torsoGrad = ctx.createRadialGradient(-5, -4 + walkOffset * 0.5, 3, 0, 1 + walkOffset * 0.5, 19);
+        torsoGrad.addColorStop(0, theme.light || "#ffffff");
+        torsoGrad.addColorStop(0.35, suitColor);
+        torsoGrad.addColorStop(1, suitShade);
+        ctx.fillStyle = torsoGrad;
+        ctx.beginPath();
+        ctx.arc(0, 1 + walkOffset * 0.5, 18, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Chest Badge specific to character
+        const badgeX = -7;
+        const badgeY = 1 + walkOffset * 0.5;
+        ctx.save();
+        ctx.translate(badgeX, badgeY);
+
+        if (charKey === "matias") {
+            // Golden Star
+            ctx.fillStyle = "#ffd600";
+            ctx.strokeStyle = "#d97706";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 4.5, -Math.sin((18 + i * 72) * Math.PI / 180) * 4.5);
+                ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 2.2, -Math.sin((54 + i * 72) * Math.PI / 180) * 2.2);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        } else if (charKey === "fantasma") {
+            // Cyan Cyber Arc Reactor / Core
+            ctx.fillStyle = "#00f2fe";
+            ctx.beginPath();
+            ctx.arc(0, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(0, 0, 2, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (charKey === "gato_azul") {
+            // White Cat Paw Print
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(0, 1, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(-2.5, -2, 1.2, 0, Math.PI * 2);
+            ctx.arc(0, -3.2, 1.2, 0, Math.PI * 2);
+            ctx.arc(2.5, -2, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (charKey === "reina_flor") {
+            // Pink Blossom Flower
+            ctx.fillStyle = "#f472b6";
+            for (let i = 0; i < 5; i++) {
+                const ang = i * (Math.PI * 2 / 5);
+                ctx.beginPath();
+                ctx.arc(Math.cos(ang) * 2.8, Math.sin(ang) * 2.8, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = "#fef08a";
+            ctx.beginPath();
+            ctx.arc(0, 0, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (charKey === "duende_verde") {
+            // Green 4-leaf Lucky Clover
+            ctx.fillStyle = "#4ade80";
+            for (let i = 0; i < 4; i++) {
+                const ang = i * (Math.PI / 2);
+                ctx.beginPath();
+                ctx.arc(Math.cos(ang) * 2.4, Math.sin(ang) * 2.4, 1.8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = "#15803d";
+            ctx.beginPath();
+            ctx.arc(0, 0, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (charKey === "granjero_rojo") {
+            // Golden Wheat Sheaf
+            ctx.strokeStyle = "#fef08a";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-1, 4); ctx.lineTo(1, -4);
+            ctx.stroke();
+            ctx.fillStyle = "#fde047";
+            ctx.beginPath();
+            ctx.ellipse(2, -2, 1.5, 2.5, 0.4, 0, Math.PI * 2);
+            ctx.ellipse(-1, 0, 1.5, 2.5, -0.4, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (charKey === "sanador_naranja") {
+            // White Medical Cross
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(-1.5, -4, 3, 8);
+            ctx.fillRect(-4, -1.5, 8, 3);
+        } else if (charKey === "nina_blanca") {
+            // Ethereal Lavender Butterfly
+            ctx.fillStyle = "#c084fc";
+            ctx.beginPath();
+            ctx.ellipse(-2.5, -1.5, 2.2, 3, -0.4, 0, Math.PI * 2);
+            ctx.ellipse(2.5, -1.5, 2.2, 3, 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#f472b6";
+            ctx.beginPath();
+            ctx.arc(0, 0, 1.3, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (charKey === "mistico_uva") {
+            // Golden Crescent Moon
+            ctx.fillStyle = "#fde047";
+            ctx.beginPath();
+            ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = theme.suitColor;
+            ctx.beginPath();
+            ctx.arc(1.5, -1, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (charKey === "mago_negro") {
+            // Arcane Violet Diamond / Rune
+            ctx.fillStyle = "#c084fc";
+            ctx.beginPath();
+            ctx.moveTo(0, -4.5); ctx.lineTo(3.5, 0); ctx.lineTo(0, 4.5); ctx.lineTo(-3.5, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = "#e879f9";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        } else if (charKey === "ciclope_astral") {
+            // Radiant Cosmic Starburst
+            ctx.fillStyle = "#38bdf8";
+            ctx.beginPath();
+            ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#38bdf8";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, -5); ctx.lineTo(0, 5);
+            ctx.moveTo(-5, 0); ctx.lineTo(5, 0);
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = "#ffd600";
+            ctx.beginPath();
+            ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        // Metallic Front Zipper (Cierre metálico)
+        ctx.strokeStyle = "#334155";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, -6 + walkOffset * 0.5);
+        ctx.lineTo(0, 14 + walkOffset * 0.5);
+        ctx.stroke();
+
+        // Silver Zipper Teeth dashes
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.setLineDash([2, 2]);
+        ctx.moveTo(0, -6 + walkOffset * 0.5);
+        ctx.lineTo(0, 14 + walkOffset * 0.5);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Zipper Puller Slider (Tirador de la cremallera)
+        ctx.fillStyle = "#cbd5e1";
+        ctx.fillRect(-2, 2 + walkOffset * 0.5, 4, 5);
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(-1, 5 + walkOffset * 0.5, 2, 2);
+
+        // Kangaroo Pockets
+        ctx.strokeStyle = theme.pocket || "rgba(0,0,0,0.2)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 6 + walkOffset * 0.5, 10, 0.2 * Math.PI, 0.8 * Math.PI);
+        ctx.stroke();
+
+        // Custom Skin Outfit Overlay
+        const effectiveSkin = p.skin || "onesie_tie";
+        this.drawSkin(ctx, effectiveSkin, suitColor, suitShade, walkOffset);
+
+        // 6. 3D FACE WITH CHARACTER SPECIFICITY
+        const faceGrad = ctx.createRadialGradient(-3, -12 + walkOffset * 0.5, 2, 0, -10 + walkOffset * 0.5, 13);
+        if (charKey === "fantasma") {
+            faceGrad.addColorStop(0, "#f8fafc");
+            faceGrad.addColorStop(0.5, "#e2e8f0");
+            faceGrad.addColorStop(1, "#cbd5e1");
+        } else {
+            faceGrad.addColorStop(0, "#fff5eb");
+            faceGrad.addColorStop(0.5, "#ffdfba");
+            faceGrad.addColorStop(1, "#f5c596");
+        }
+        ctx.fillStyle = faceGrad;
+        ctx.beginPath();
+        ctx.arc(0, -10 + walkOffset * 0.5, 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Rosy cheeks (except for cyber/robotic entities)
+        if (charKey !== "fantasma" && charKey !== "ciclope_astral") {
+            ctx.fillStyle = isClone ? "rgba(255, 51, 102, 0.35)" : "rgba(248, 113, 113, 0.45)";
+            ctx.beginPath();
+            ctx.arc(-7, -7 + walkOffset * 0.5, 3, 0, Math.PI * 2);
+            ctx.arc(7, -7 + walkOffset * 0.5, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Eyes / Visor Rendering
+        if (charKey === "ciclope_astral") {
+            // Large single cyclops cosmic eye
+            const eyeY = -10 + walkOffset * 0.5;
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(0, eyeY, 6.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = isClone ? "#ff3366" : "#38bdf8";
+            ctx.lineWidth = 1.6;
+            ctx.stroke();
+
+            const irisGrad = ctx.createRadialGradient(0, eyeY, 1, 0, eyeY, 4.5);
+            irisGrad.addColorStop(0, isClone ? "#ff3366" : "#38bdf8");
+            irisGrad.addColorStop(0.5, isClone ? "#9f1239" : "#6366f1");
+            irisGrad.addColorStop(1, "#0f172a");
+            ctx.fillStyle = irisGrad;
+            ctx.beginPath();
+            ctx.arc(0, eyeY, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#020617";
+            ctx.beginPath();
+            ctx.arc(0, eyeY, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(1.2, eyeY - 1.5, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (charKey === "fantasma") {
+            // Cybernetic visor across eyes
+            const visorY = -11 + walkOffset * 0.5;
+            ctx.fillStyle = "#0f172a";
+            ctx.fillRect(-8, visorY - 3, 16, 6);
+            ctx.fillStyle = isClone ? "#ff3366" : "#00f2fe";
+            ctx.fillRect(-7, visorY - 2, 14, 4);
+            // Visor scanning light
+            const scanX = Math.sin(now / 200) * 4.5;
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(scanX - 1.5, visorY - 2, 3, 4);
+        } else if (charKey === "mago_negro") {
+            // Mystical glowing violet eyes
+            const eyeY = -10 + walkOffset * 0.5;
+            ctx.fillStyle = isClone ? "#ff3366" : "#c084fc";
+            ctx.beginPath();
+            ctx.ellipse(-4, eyeY, 2.5, 4, 0, 0, Math.PI * 2);
+            ctx.ellipse(4, eyeY, 2.5, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(-4, eyeY - 1, 1, 0, Math.PI * 2);
+            ctx.arc(4, eyeY - 1, 1, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Standard expressive cartoon eyes
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.ellipse(-4, -10 + walkOffset * 0.5, 3.5, 5, 0, 0, Math.PI * 2);
+            ctx.ellipse(4, -10 + walkOffset * 0.5, 3.5, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = isClone ? "#991b1b" : "#1e293b";
+            ctx.beginPath();
+            ctx.arc(-3.5, -10 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
+            ctx.arc(4.5, -10 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (isClone) {
+                // Subtle crimson clone iris glint
+                ctx.fillStyle = "#ff3366";
+                ctx.beginPath();
+                ctx.arc(-3.5, -10 + walkOffset * 0.5, 1.1, 0, Math.PI * 2);
+                ctx.arc(4.5, -10 + walkOffset * 0.5, 1.1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(-4, -11 + walkOffset * 0.5, 1, 0, Math.PI * 2);
+            ctx.arc(4, -11 + walkOffset * 0.5, 1, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Gato Azul Cat Whiskers and Nose
+        if (charKey === "gato_azul") {
+            ctx.strokeStyle = "#1e293b";
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(-5, -6 + walkOffset * 0.5); ctx.lineTo(-13, -8 + walkOffset * 0.5);
+            ctx.moveTo(-5, -5 + walkOffset * 0.5); ctx.lineTo(-13, -4 + walkOffset * 0.5);
+            ctx.moveTo(5, -6 + walkOffset * 0.5); ctx.lineTo(13, -8 + walkOffset * 0.5);
+            ctx.moveTo(5, -5 + walkOffset * 0.5); ctx.lineTo(13, -4 + walkOffset * 0.5);
+            ctx.stroke();
+
+            ctx.fillStyle = "#f472b6";
+            ctx.beginPath();
+            ctx.arc(0, -6 + walkOffset * 0.5, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Duende Verde Pointed Elf Ears
+        if (charKey === "duende_verde") {
+            ctx.fillStyle = "#22c55e";
+            ctx.beginPath();
+            ctx.moveTo(-11, -11 + walkOffset * 0.5);
+            ctx.lineTo(-17, -15 + walkOffset * 0.5);
+            ctx.lineTo(-11, -7 + walkOffset * 0.5);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(11, -11 + walkOffset * 0.5);
+            ctx.lineTo(17, -15 + walkOffset * 0.5);
+            ctx.lineTo(11, -7 + walkOffset * 0.5);
+            ctx.fill();
+        }
+
+        // Místico Uva Third Eye Gem
+        if (charKey === "mistico_uva") {
+            ctx.fillStyle = "#d946ef";
+            ctx.beginPath();
+            ctx.arc(0, -17 + walkOffset * 0.5, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // GENDER & HAIR DIFFERENTIATION
+        if (isGirl) {
+            // Eyelashes (Pestañas)
+            ctx.strokeStyle = "#1e293b";
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(-7, -13 + walkOffset * 0.5);
+            ctx.lineTo(-9, -15 + walkOffset * 0.5);
+            ctx.moveTo(-5, -14 + walkOffset * 0.5);
+            ctx.lineTo(-6, -17 + walkOffset * 0.5);
+            ctx.moveTo(7, -13 + walkOffset * 0.5);
+            ctx.lineTo(9, -15 + walkOffset * 0.5);
+            ctx.moveTo(5, -14 + walkOffset * 0.5);
+            ctx.lineTo(6, -17 + walkOffset * 0.5);
+            ctx.stroke();
+
+            // Twintails / Pigtails
+            const pigtailBounce = Math.sin((p.walkAnim || 0) * 1.5) * 3;
+            ctx.fillStyle = (charKey === "nina_blanca") ? "#e2e8f0" : "#5a3825";
+            ctx.beginPath();
+            ctx.ellipse(-14, -10 + walkOffset * 0.5 + pigtailBounce, 5, 10, -0.4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(14, -10 + walkOffset * 0.5 - pigtailBounce, 5, 10, 0.4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Bows
+            ctx.fillStyle = (charKey === "reina_flor") ? "#f472b6" : "#fd79a8";
+            ctx.beginPath();
+            ctx.arc(-13, -15 + walkOffset * 0.5 + pigtailBounce, 3, 0, Math.PI * 2);
+            ctx.arc(13, -15 + walkOffset * 0.5 - pigtailBounce, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Bangs
+            ctx.fillStyle = (charKey === "nina_blanca") ? "#e2e8f0" : "#5a3825";
+            ctx.beginPath();
+            ctx.arc(0, -17 + walkOffset * 0.5, 10, 0.9 * Math.PI, 0.1 * Math.PI);
+            ctx.fill();
+        } else {
+            // Boyish spiky hair
+            ctx.fillStyle = (charKey === "fantasma") ? "#475569" : (charKey === "mago_negro" ? "#18181b" : "#362217");
+            ctx.beginPath();
+            ctx.arc(0, -18 + walkOffset * 0.5, 10, 0.8 * Math.PI, 0.2 * Math.PI);
+            ctx.lineTo(3, -24 + walkOffset * 0.5);
+            ctx.lineTo(-2, -21 + walkOffset * 0.5);
+            ctx.lineTo(-6, -23 + walkOffset * 0.5);
+            ctx.fill();
+        }
+
+        // Smile / Mouth
+        ctx.strokeStyle = isClone ? "#ff3366" : "#991b1b";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(0, -6 + walkOffset * 0.5, 3.5, 0.1 * Math.PI, 0.9 * Math.PI);
+        ctx.stroke();
+
+        // 7. Hat on Head (with signature default fallback for each character)
+        const defaultHats = {
+            matias: "mini_matias",
+            fantasma: "microscope_bot",
+            gato_azul: "cat_mask",
+            reina_flor: "crown_flower",
+            duende_verde: "leprechaun_gold",
+            granjero_rojo: "straw_hat",
+            sanador_naranja: "healing_plant",
+            nina_blanca: "butterfly_bow",
+            mistico_uva: "alien_antennas",
+            mago_negro: "magic_tophat",
+            ciclope_astral: "cyclops_eye"
+        };
+        const effectiveHat = p.hat || defaultHats[charKey] || null;
+        this.drawHat(ctx, effectiveHat, 0, -22 + walkOffset * 0.5);
+
+        // 8. Weapon in Hand (with signature default fallback for each character)
+        const defaultWeapons = {
+            matias: "racket",
+            fantasma: "microscope",
+            gato_azul: "pan",
+            reina_flor: "magic_flower",
+            duende_verde: "gold_pot",
+            granjero_rojo: "wheat_fork",
+            sanador_naranja: "herbs_basket",
+            nina_blanca: "star_wand",
+            mistico_uva: "crystal_wand",
+            mago_negro: "magic_cane",
+            ciclope_astral: "crystal_orb"
+        };
+        const effectiveWeapon = p.weapon || defaultWeapons[charKey] || null;
+        this.drawWeapon(ctx, effectiveWeapon, 16, 6 + walkOffset * 0.5);
+
+        // Subtle holographic scanline shimmer on cloned figures
+        if (isClone) {
+            const scanY = ((now / 18) % 44) - 22;
+            ctx.save();
+            ctx.strokeStyle = "rgba(0, 242, 254, 0.32)";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-16, scanY);
+            ctx.lineTo(16, scanY);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Impostor Disguise Vapor Swirls (Only visible to local impostor)
+        if (!isClone && p.is_disguised && p.id === this.myPlayerId) {
+            const sTime = now / 250;
+            for (let s = 0; s < 4; s++) {
+                const sAngle = sTime + s * (Math.PI / 2);
+                const sx = Math.cos(sAngle) * 20;
+                const sy = Math.sin(sAngle) * 12 + 8;
+                ctx.fillStyle = "rgba(168, 85, 247, 0.4)";
+                ctx.beginPath();
+                ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.font = "bold 11px 'Orbitron', sans-serif";
+            ctx.fillStyle = "#c084fc";
+            ctx.textAlign = "center";
+            ctx.fillText(`🎭 CAMUFLADO (${Math.ceil(p.disguise_timer || 0)}s)`, 0, -56);
+        }
+
+        // Invisibility indicator for local player
+        if (!isClone && p.is_invisible && p.id === this.myPlayerId) {
+            ctx.font = "bold 11px 'Orbitron', sans-serif";
+            ctx.fillStyle = "#00f2fe";
+            ctx.textAlign = "center";
+            ctx.fillText(`👻 INVISIBLE (${Math.ceil(p.invis_time_left || 0)}s)`, 0, -70);
+        }
+
+        // HP Bar
+        if (p.alive) {
+            const maxHp = isClone ? 120 : 100;
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(-16, -34, 32, 4);
+            ctx.fillStyle = isClone ? "#ff3366" : (p.hp > 40 ? "#00e676" : "#ff3366");
+            ctx.fillRect(-16, -34, Math.max(0, Math.min(1, (p.hp || 0) / maxHp)) * 32, 4);
+        }
+
+        // Name Tag with Character Badge icon
+        ctx.globalAlpha = 1.0;
+        ctx.font = "bold 13px 'Rajdhani', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillStyle = (isClone || p.role === "impostor") ? "#ff3366" : "#ffffff";
+        const charIcons = {
+            matias: "👦 ",
+            fantasma: "🔬 ",
+            gato_azul: "🐱 ",
+            reina_flor: "🌸 ",
+            duende_verde: "🍀 ",
+            granjero_rojo: "🌾 ",
+            sanador_naranja: "🌿 ",
+            nina_blanca: "🦋 ",
+            mistico_uva: "🍇 ",
+            mago_negro: "🎩 ",
+            ciclope_astral: "🔮 "
+        };
+        const roleBadge = charIcons[charKey] || (isGirl ? "👧 " : "👦 ");
+        ctx.fillText(roleBadge + (p.name || "Clon"), 0, -42);
+
+        if (!isClone && p.id === this.myPlayerId) {
+            ctx.fillStyle = "#00d2ff";
+            ctx.fillText("▲ (TÚ)", 0, -54);
+        }
+
+        ctx.restore();
     }
 
     drawBrusCompanion(ctx) {

@@ -1,0 +1,13 @@
+{
+  "id": "clone-sprite-parity",
+  "name": "Clone & Player 3D Sprite Parity Guard",
+  "comment": "Verifica automáticamente que los clones impostores y los jugadores compartan el renderizador 3D drawCharacterSprite y pasen los tests cuando se edita game.js o game_state.py.",
+  "when": {
+    "type": "fileEdited",
+    "pattern": "{client/js/game.js,server/game_state.py}"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Se ha modificado el motor gráfico o de estado (client/js/game.js o server/game_state.py). Como agente clone-auditor-worker: 1) Verifica que drawCloneImpostors(ctx) y drawPlayers(ctx) deleguen el dibujo del cuerpo 3D a drawCharacterSprite(ctx, entity, options) sin usar siluetas primitivas, 2) Verifica que CloneImpostor conserve character, gender, color, hat, skin y weapon en to_dict(), 3) Ejecuta `node --check client/js/game.js` y `python3 -m unittest discover -s server -p \"test_*.py\"` para confirmar 0 errores."
+  }
+}

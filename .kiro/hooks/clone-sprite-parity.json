@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Clone & Player 3D Sprite Parity Guard",
+      "description": "Verifica automáticamente que los clones impostores y los jugadores compartan el renderizador 3D drawCharacterSprite y pasen los tests al editar game.js o game_state.py.",
+      "trigger": "fileEdited",
+      "matcher": "^(client/js/game\\.js|server/game_state\\.py)$",
+      "action": {
+        "type": "askAgent",
+        "prompt": "Se ha modificado client/js/game.js o server/game_state.py. Verifica que drawCloneImpostors y drawPlayers utilicen drawCharacterSprite(ctx, entity, options) manteniendo los 11 personajes, 18 sombreros, 5 trajes y 13 armas sincronizados, y ejecuta node --check client/js/game.js y python3 -m unittest discover -s server -p \"test_*.py\"."
+      },
+      "enabled": true
+    }
+  ]
+}

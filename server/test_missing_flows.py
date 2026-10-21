@@ -195,6 +195,39 @@ class TestMissingFlowsAndAuditFixes(unittest.TestCase):
         self.assertEqual([p["id"] for p in snap_a["players"]], ["pa"])
         self.assertEqual([p["id"] for p in snap_b["players"]], ["pb"])
 
+    def test_clone_preserves_full_appearance_and_creates_downed_body_on_kill(self):
+        """CloneImpostor copies all cosmetic fields and leaves a revivable body when downing a player."""
+        room = GameRoom("ROOM-CLONE-AESTHETIC")
+        p1 = room.add_player("p1", "Reina", gender="girl", character="reina_flor")
+        p2 = room.add_player("p2", "Victim", gender="boy", character="gato_azul")
+        room.start_game()
+        p1.role = "crewmate"
+        p2.role = "crewmate"
+        room.update_customization("p1", "crown_flower", "cyber_suit", "magic_flower", gender="girl", character="reina_flor")
+
+        from game_state import CloneImpostor
+        clone = CloneImpostor("clone_test", p1)
+        room.clone_impostors.append(clone)
+
+        d = clone.to_dict()
+        self.assertEqual(d["character"], "reina_flor")
+        self.assertEqual(d["gender"], "girl")
+        self.assertEqual(d["hat"], "crown_flower")
+        self.assertEqual(d["skin"], "cyber_suit")
+        self.assertEqual(d["weapon"], "magic_flower")
+        self.assertEqual(d["original_id"], "p1")
+        self.assertIn("character_num", d)
+
+        # Position clone next to p2 with 20 HP and trigger tick so clone downs p2
+        p2.hp = 20
+        clone.x, clone.y = p2.x + 10, p2.y
+        clone.attack_cd = 0.0
+        room.tick(0.05)
+
+        self.assertFalse(p2.alive)
+        self.assertEqual(len(room.dead_bodies), 1)
+        self.assertEqual(room.dead_bodies[0]["victim_id"], "p2")
+
 
 if __name__ == "__main__":
     unittest.main()

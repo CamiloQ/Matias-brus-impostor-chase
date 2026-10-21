@@ -1056,6 +1056,7 @@ class CloneImpostor:
         self.name = f"{creator_player.name} (CLON)"
         self.gender = getattr(creator_player, "gender", "boy")
         self.character = getattr(creator_player, "character", "matias")
+        self.character_num = getattr(creator_player, "character_num", 1)
         self.color = creator_player.color
         self.hat = creator_player.hat
         self.skin = creator_player.skin
@@ -1106,8 +1107,6 @@ class CloneImpostor:
                 if self.attack_cd <= 0:
                     self.attack_cd = 2.2
                     closest_target.hp = max(0, closest_target.hp - 25)
-                    if closest_target.hp <= 0:
-                        closest_target.alive = False
         else:
             self.vx = 0
             self.vy = 0
@@ -1121,8 +1120,10 @@ class CloneImpostor:
         return {
             "id": self.id,
             "name": self.name,
+            "original_id": self.original_id,
             "gender": getattr(self, "gender", "boy"),
             "character": getattr(self, "character", "matias"),
+            "character_num": getattr(self, "character_num", 1),
             "color": self.color,
             "hat": self.hat,
             "skin": self.skin,
