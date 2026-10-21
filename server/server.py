@@ -10,6 +10,7 @@ import struct
 import hashlib
 import base64
 import mimetypes
+from collections import deque
 from pathlib import Path
 from game_state import (
     GameRoom,
@@ -42,6 +43,26 @@ MAX_WS_FRAME_BYTES = 65536  # 64KB — plenty for any legit JSON message this ga
 
 ROOMS = {}
 CONNECTIONS = {}
+
+
+class SlidingWindowRateLimiter:
+    """True sliding-window rate limiter preventing boundary burst double-counting."""
+
+    def __init__(self, max_calls=300, window_sec=1.0):
+        self.max_calls = max_calls
+        self.window_sec = window_sec
+        self.timestamps = deque()
+
+    def allow(self, now=None):
+        if now is None:
+            now = time.time()
+        cutoff = now - self.window_sec
+        while self.timestamps and self.timestamps[0] <= cutoff:
+            self.timestamps.popleft()
+        if len(self.timestamps) >= self.max_calls:
+            return False
+        self.timestamps.append(now)
+        return True
 
 
 def get_lan_ip():
@@ -378,32 +399,7 @@ async def handle_ws_message(writer, msg_str):
 
     elif msg_type == "return_to_lobby":
         if room:
-            room.episode = (room.episode % room.max_episodes) + 1
-            room.state = "LOBBY"
-            room.winner = None
-            room.dead_bodies = []
-            room.clone_impostors = []
-            room.light_orbs = []
-            room.meeting = {
-                "caller": None,
-                "reason": None,
-                "votes": {},
-                "timer": 0.0,
-                "result": None,
-            }
-            room.init_world_entities()
-            for p in room.players.values():
-                p.alive = True
-                p.hp = 100
-                p.score = 0
-                p.completed_tasks = set()
-                p.scored_tasks = set()
-                p.current_task = None
-                p.in_vent = None
-                p.invis_timer = 0.0
-                p.disguise = None
-                p.disguise_timer = 0.0
-                p.ghost_button_cooldown = 0.0
+            room.return_to_lobby()
             await broadcast_to_room(
                 room_id,
                 {
@@ -638,18 +634,9 @@ async def handle_connection(reader, writer):
             writer.write(response.encode())
             await writer.drain()
 
-            msg_count = 0
-            last_reset = time.time()
+            rate_limiter = SlidingWindowRateLimiter(max_calls=300, window_sec=1.0)
 
             while True:
-                now = time.time()
-                if now - last_reset > 1.0:
-                    msg_count = 0
-                    last_reset = now
-                msg_count += 1
-                if msg_count > 300:
-                    break  # Rate limit exceeded (anti-spam)
-
                 # SECURITY / RELIABILITY: a bare `await read_ws_frame(reader)` blocks
                 # forever if the socket dies without a proper close frame — very
                 # common on mobile (screen lock, app backgrounded, carrier NAT
@@ -665,6 +652,9 @@ async def handle_connection(reader, writer):
                     )
                 except asyncio.TimeoutError:
                     break
+
+                if not rate_limiter.allow():
+                    break  # Rate limit exceeded (anti-spam)
 
                 if opcode == OP_CLOSE:
                     break
@@ -847,9 +837,9 @@ async def game_tick_loop():
                 if info.get("room_id") == room_id
             ]
             if room_conns:
-                async def _send_client(writer, player_id):
+                async def _send_client(writer, player_id, _room=room):
                     try:
-                        snapshot = room.get_snapshot_for_player(player_id)
+                        snapshot = _room.get_snapshot_for_player(player_id)
                         await asyncio.wait_for(send_json(writer, snapshot), timeout=0.035)
                     except Exception:
                         pass

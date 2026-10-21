@@ -1,14 +1,14 @@
 // Service Worker for Matias & Brus: Impostor Chase
-const CACHE_NAME = 'impostor-chase-v6';
+const CACHE_NAME = 'impostor-chase-v7';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/style.css',
-  './js/crazygames.js',
-  './js/audio.js',
-  './js/network.js',
-  './js/game.js',
-  './js/ui.js',
+  './js/crazygames.js?v=19',
+  './js/audio.js?v=19',
+  './js/network.js?v=19',
+  './js/game.js?v=19',
+  './js/ui.js?v=19',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -47,10 +47,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (STATIC_ASSETS.test(url)) {
-    // Cache-first with background revalidation (stale-while-revalidate)
+  let pathname = url;
+  try {
+    pathname = new URL(url).pathname;
+  } catch (e) {}
+
+  if (STATIC_ASSETS.test(pathname)) {
+    // Respect ?v=N query strings for immediate cache-busting on deploy
     event.respondWith(
-      caches.match(event.request, { ignoreSearch: true }).then((cached) => {
+      caches.match(event.request).then((cached) => {
         const fetchPromise = fetch(event.request)
           .then((response) => {
             if (response && response.status === 200) {
@@ -59,7 +64,7 @@ self.addEventListener('fetch', (event) => {
             }
             return response;
           })
-          .catch(() => cached);
+          .catch(() => cached || caches.match(event.request, { ignoreSearch: true }));
         return cached || fetchPromise;
       })
     );

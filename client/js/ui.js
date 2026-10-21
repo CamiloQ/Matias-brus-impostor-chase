@@ -816,6 +816,9 @@ class UIManager {
         });
 
         window.network.on("joined_room", (data) => {
+            if (this.connectionToast) {
+                this.connectionToast.classList.add("hidden");
+            }
             this.lobbyScreen.classList.add("hidden");
             const isPlaying = (data.room_state !== "LOBBY" && data.room_state !== "GAME_OVER" || window.gameEngine.gameState !== "LOBBY" && window.gameEngine.gameState !== "GAME_OVER");
             if (!isPlaying) {
@@ -942,16 +945,6 @@ class UIManager {
             } else {
                 this.btnKill.classList.add("hidden");
                 this.btnVent.classList.add("hidden");
-            }
-        });
-
-        window.network.on("reconnected", (data) => {
-            if (data.assigned_tasks && data.assigned_tasks.length > 0) {
-                window.gameEngine.assignedTasks = data.assigned_tasks;
-                this.renderTaskList(data.assigned_tasks);
-            }
-            if (data.role) {
-                this.showRoleBanner(data.role);
             }
         });
 
@@ -1121,12 +1114,6 @@ class UIManager {
             if (this.connectionToast) {
                 this.connectionToast.textContent = "⚠️ No se pudo reconectar. Recarga la página.";
                 this.connectionToast.classList.remove("hidden");
-            }
-        });
-
-        window.network.on("joined_room", () => {
-            if (this.connectionToast) {
-                this.connectionToast.classList.add("hidden");
             }
         });
     }
@@ -1327,7 +1314,7 @@ class UIManager {
 
     updateActionButtons(state) {
         // Manage Downed Status Banner for spectating fallen player
-        const myBody = window.gameEngine && window.gameEngine.deadBodies && window.gameEngine.deadBodies.find(b => b.victim_id === (window.gameEngine.myPlayerId || (window.network && window.network.playerId)));
+        const myBody = window.gameEngine && window.gameEngine.deadBodies && window.gameEngine.deadBodies.find(b => b.victim_id === (window.gameEngine.myPlayerId || (window.network && window.network.myPlayerId)));
         const downedBanner = document.getElementById("downed-status-banner");
         if (!state.alive && myBody) {
             let msg = "⚠️ ESTÁS DERRIBADO: Esperando auxilio de un compañero...";

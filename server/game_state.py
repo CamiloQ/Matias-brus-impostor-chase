@@ -1196,6 +1196,7 @@ class Player:
         # Ghost Invisibility Button effect
         self.invis_timer = 0.0
         self.ghost_button_cooldown = 0.0
+        self.connected = True
 
     def set_character(self, character_id, gender=None):
         """Sets character, updating appearance, signature equipment and gender."""
@@ -1640,7 +1641,6 @@ class GameRoom:
                         p.completed_tasks.add(p.current_task)
                         p.current_task = None
                         p.task_progress = 0.0
-                        self.check_game_over()
 
             for clone in self.clone_impostors:
                 clone.tick(dt, all_alive_humans)
@@ -1988,10 +1988,37 @@ class GameRoom:
                 p.kill_cooldown = KILL_COOLDOWN
 
         self.dead_bodies = []
+        self.state = "MEETING_RESULT"
+        self.meeting_result_timer = 4.0
 
-        if not self.check_game_over():
-            self.state = "MEETING_RESULT"
-            self.meeting_result_timer = 4.0
+    def return_to_lobby(self):
+        """Resets room state, world entities, and all players back to LOBBY."""
+        self.episode = (self.episode % self.max_episodes) + 1
+        self.state = "LOBBY"
+        self.winner = None
+        self.dead_bodies = []
+        self.clone_impostors = []
+        self.light_orbs = []
+        self.meeting = {
+            "caller": None,
+            "reason": None,
+            "votes": {},
+            "timer": 0.0,
+            "result": None,
+        }
+        self.init_world_entities()
+        for p in self.players.values():
+            p.alive = True
+            p.hp = 100
+            p.score = 0
+            p.completed_tasks = set()
+            p.scored_tasks = set()
+            p.current_task = None
+            p.in_vent = None
+            p.invis_timer = 0.0
+            p.disguise = None
+            p.disguise_timer = 0.0
+            p.ghost_button_cooldown = 0.0
 
     def check_game_over(self):
         """Docstring for check_game_over."""

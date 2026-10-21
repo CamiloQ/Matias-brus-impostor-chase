@@ -6,3 +6,5 @@ Idea_inicial/
 __pycache__/
 *.pyc
 .dockerignore*
+scratch/
+audit_kiro/
