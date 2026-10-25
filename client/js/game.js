@@ -2693,19 +2693,54 @@ class GameEngine {
                 ctx.arc(0, 0, 9, 0, Math.PI * 2);
                 ctx.fill();
             } else if (col.type === "crystal") {
-                // Blue Power Gem (Design 4)
-                ctx.fillStyle = "#00d2ff";
-                ctx.strokeStyle = "#0083b0";
-                ctx.lineWidth = 2;
+                // Realistic 3D Vitality Heart (recharges +30 HP)
+                const beat = 1.0 + Math.pow(Math.max(0, Math.sin(time * 2.2)), 3) * 0.16;
+                ctx.scale(beat, beat);
+
+                // 1. Soft crimson ambient pulse glow
+                ctx.save();
+                ctx.shadowColor = "rgba(244, 63, 94, 0.75)";
+                ctx.shadowBlur = 12;
+
+                // 2. 3D Volumetric Gradient
+                const heartGrad = ctx.createRadialGradient(-3, -4, 2, 0, 0, 16);
+                heartGrad.addColorStop(0, "#fb7185"); // Light highlight / arterial crest
+                heartGrad.addColorStop(0.35, "#e11d48"); // Vibrant ruby red core
+                heartGrad.addColorStop(0.75, "#9f1239"); // Deep muscular shading
+                heartGrad.addColorStop(1, "#4c0519"); // Dark rim / ambient occlusion
+                ctx.fillStyle = heartGrad;
+
+                // 3. Smooth Anatomical / Volumetric Bezier Heart Path
                 ctx.beginPath();
-                ctx.moveTo(0, -14);
-                ctx.lineTo(12, -4);
-                ctx.lineTo(8, 12);
-                ctx.lineTo(-8, 12);
-                ctx.lineTo(-12, -4);
+                ctx.moveTo(0, 13);
+                // Left curve (bottom tip to top left lobe)
+                ctx.bezierCurveTo(-14, 2, -16, -11, -8, -14);
+                ctx.bezierCurveTo(-3.5, -16, 0, -10, 0, -5);
+                // Right curve (top notch to top right lobe to bottom tip)
+                ctx.bezierCurveTo(0, -10, 3.5, -16, 8, -14);
+                ctx.bezierCurveTo(16, -11, 14, 2, 0, 13);
                 ctx.closePath();
                 ctx.fill();
+
+                // 4. Subtle glossy rim outline
+                ctx.strokeStyle = "rgba(254, 205, 211, 0.6)";
+                ctx.lineWidth = 1.2;
                 ctx.stroke();
+                ctx.restore();
+
+                // 5. Specular curved gloss reflection on top-left ventricle
+                ctx.save();
+                ctx.beginPath();
+                ctx.ellipse(-5.5, -9, 3.8, 1.8, -Math.PI / 4, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+                ctx.fill();
+
+                // Small secondary pin-point gloss
+                ctx.beginPath();
+                ctx.arc(-2, -6, 1.0, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+                ctx.fill();
+                ctx.restore();
             }
             ctx.restore();
         });

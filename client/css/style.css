@@ -182,6 +182,26 @@ canvas#gameCanvas {
     font-size: 0.9rem;
 }
 
+.danger-hud-btn {
+    border-radius: 8px !important;
+    width: auto !important;
+    padding: 3px 8px !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    background: rgba(239, 68, 68, 0.28) !important;
+    border: 1px solid #ef4444 !important;
+    color: #fca5a5 !important;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+}
+
+.danger-hud-btn:hover {
+    background: rgba(239, 68, 68, 0.65) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.7) !important;
+    transform: scale(1.05);
+}
+
 /* Tasks Checklist */
 #task-checklist {
     top: max(60px, calc(env(safe-area-inset-top) + 40px));

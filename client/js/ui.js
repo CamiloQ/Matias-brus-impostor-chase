@@ -77,6 +77,10 @@ class UIManager {
         this.btnCloseShapeshift = document.getElementById("btn-close-shapeshift");
         this.btnRemoveDisguise = document.getElementById("btn-remove-disguise");
         this.btnFullscreen = document.getElementById("btn-fullscreen");
+        this.btnLeaveGame = document.getElementById("btn-leave-game");
+        this.leaveConfirmModal = document.getElementById("leave-confirm-modal");
+        this.btnCancelLeave = document.getElementById("btn-cancel-leave");
+        this.btnConfirmLeave = document.getElementById("btn-confirm-leave");
         this.killCdTimer = document.getElementById("kill-cd-timer");
 
         // Lobby
@@ -169,6 +173,41 @@ class UIManager {
                 } else {
                     document.exitFullscreen().catch(() => {});
                 }
+            });
+        }
+
+        // Leave Active Game Modal
+        if (this.btnLeaveGame) {
+            this.btnLeaveGame.addEventListener("click", () => {
+                this.vibrate(20);
+                if (window.soundEngine) window.soundEngine.playClick();
+                if (this.leaveConfirmModal) {
+                    this.leaveConfirmModal.classList.remove("hidden");
+                }
+            });
+        }
+
+        if (this.btnCancelLeave) {
+            this.btnCancelLeave.addEventListener("click", () => {
+                this.vibrate(15);
+                if (window.soundEngine) window.soundEngine.playClick();
+                if (this.leaveConfirmModal) {
+                    this.leaveConfirmModal.classList.add("hidden");
+                }
+            });
+        }
+
+        if (this.btnConfirmLeave) {
+            this.btnConfirmLeave.addEventListener("click", () => {
+                this.vibrate(40);
+                if (window.soundEngine) window.soundEngine.playClick();
+                if (window.crazyGamesService) {
+                    window.crazyGamesService.gameplayStop();
+                }
+                if (window.network && window.network.ws) {
+                    window.network.ws.close();
+                }
+                window.location.reload();
             });
         }
 

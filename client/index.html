@@ -60,6 +60,8 @@
             <button id="btn-toggle-chat" class="icon-hud-btn" title="Chat de Mensajes">CHAT</button>
             <!-- Fullscreen button for mobile -->
             <button id="btn-fullscreen" class="icon-hud-btn" title="Pantalla Completa">⛶</button>
+            <!-- Exit game button -->
+            <button id="btn-leave-game" class="icon-hud-btn danger-hud-btn" title="Salir de la Partida">🚪 SALIR</button>
         </div>
 
         <!-- Orientation Hint Banner for Mobile / Tablet in Portrait -->
@@ -240,6 +242,18 @@
                 <h1 id="game-over-title">VICTORIA</h1>
                 <p id="game-over-subtitle">Los tripulantes ganaron la partida.</p>
                 <button id="btn-return-lobby" class="primary-btn">VOLVER A LA SALA</button>
+            </div>
+        </div>
+
+        <!-- Leave Game Confirmation Modal -->
+        <div id="leave-confirm-modal" class="modal-backdrop hidden">
+            <div class="modal-box" style="max-width: 380px; text-align: center; border: 2px solid #ef4444; box-shadow: 0 0 25px rgba(239, 68, 68, 0.45);">
+                <h3 style="color: #ef4444; margin-bottom: 12px; font-family: 'Orbitron', sans-serif;">🚪 SALIR DE LA PARTIDA</h3>
+                <p style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 22px; line-height: 1.5;">¿Estás seguro de que deseas abandonar la sala y volver al menú principal?</p>
+                <div style="display: flex; gap: 12px; justify-content: center;">
+                    <button id="btn-cancel-leave" class="secondary-btn" style="flex: 1; padding: 10px;">CANCELAR</button>
+                    <button id="btn-confirm-leave" class="danger-btn" style="flex: 1; padding: 10px;">SALIR</button>
+                </div>
             </div>
         </div>
 
@@ -479,10 +493,10 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/crazygames.js?v=22"></script>
-    <script src="js/audio.js?v=22"></script>
-    <script src="js/network.js?v=22"></script>
-    <script src="js/game.js?v=22"></script>
-    <script src="js/ui.js?v=22"></script>
+    <script src="js/crazygames.js?v=23"></script>
+    <script src="js/audio.js?v=23"></script>
+    <script src="js/network.js?v=23"></script>
+    <script src="js/game.js?v=23"></script>
+    <script src="js/ui.js?v=23"></script>
 </body>
 </html>
