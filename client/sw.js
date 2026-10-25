@@ -1,14 +1,14 @@
 // Service Worker for Matias & Brus: Impostor Chase
-const CACHE_NAME = 'impostor-chase-v9';
+const CACHE_NAME = 'impostor-chase-v10';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/style.css',
-  './js/crazygames.js?v=21',
-  './js/audio.js?v=21',
-  './js/network.js?v=21',
-  './js/game.js?v=21',
-  './js/ui.js?v=21',
+  './js/crazygames.js?v=22',
+  './js/audio.js?v=22',
+  './js/network.js?v=22',
+  './js/game.js?v=22',
+  './js/ui.js?v=22',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'

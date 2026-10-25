@@ -525,10 +525,18 @@ async def handle_ws_message(writer, msg_str):
         if room:
             is_body = bool(data.get("is_body", False))
             body_id = data.get("body_id")
-            if room.report_body_or_button(player_id, is_body, body_id):
+            res = room.report_body_or_button(player_id, is_body, body_id)
+            if res:
                 await broadcast_to_room(
                     room_id, {"type": "meeting_started", "meeting": room.meeting}
                 )
+            else:
+                err_msg = (
+                    res[1]
+                    if isinstance(res, (tuple, list)) and len(res) > 1
+                    else "No se pudo iniciar la reunión"
+                )
+                await send_json(writer, {"type": "error", "message": err_msg})
 
     elif msg_type == "boost_revive":
         if room and room.state == "PLAYING":

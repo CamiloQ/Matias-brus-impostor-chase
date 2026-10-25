@@ -213,6 +213,25 @@ WARDROBE_STATION = {"x": 2380, "y": 490, "radius": 60}
 FOOD_BUFFET = {"x": 1050, "y": 480, "radius": 65}
 EMERGENCY_BUTTON = {"x": 1350, "y": 700, "radius": 80}
 
+
+class ActionResult(tuple):
+    """Result tuple (success, message) that evaluates as a boolean based on success."""
+
+    def __new__(cls, success: bool, message: str = ""):
+        return super().__new__(cls, (bool(success), str(message)))
+
+    def __bool__(self):
+        return bool(self[0])
+
+    @property
+    def success(self):
+        return self[0]
+
+    @property
+    def message(self):
+        return self[1]
+
+
 VENTS = [
     {"id": "vent_1", "x": 480, "y": 160, "connected_to": "vent_2", "room": "Reactor"},
     {
@@ -1197,6 +1216,7 @@ class Player:
         # Ghost Invisibility Button effect
         self.invis_timer = 0.0
         self.ghost_button_cooldown = 0.0
+        self.emergency_buttons_left = 1
         self.connected = True
 
     def set_character(self, character_id, gender=None):
@@ -1279,6 +1299,7 @@ class Player:
             "is_disguised": is_disguised,
             "disguise_timer": round(max(0, self.disguise_timer), 1),
             "ghost_button_cd": round(max(0, self.ghost_button_cooldown), 1),
+            "emergency_buttons_left": getattr(self, "emergency_buttons_left", 1),
             "completed_tasks_count": len(self.completed_tasks),
             "completed_tasks": list(self.completed_tasks) if is_self else [],
             "assigned_tasks": list(self.assigned_tasks) if is_self else [],
@@ -1469,6 +1490,7 @@ class GameRoom:
             p.disguise = None
             p.disguise_timer = 0.0
             p.ghost_button_cooldown = 0.0
+            p.emergency_buttons_left = 1
             # Open circular ring around the central meeting table (radius 160px)
             angle = idx * (2.0 * math.pi / max(1, len(player_list)))
             p.x = 1350.0 + math.cos(angle) * 160.0
@@ -1725,6 +1747,9 @@ class GameRoom:
         if not attacker or not attacker.alive:
             return False, "No puedes atacar", None
 
+        if getattr(attacker, "in_vent", None) is not None:
+            return False, "No puedes atacar desde dentro de la ventilación", None
+
         if attacker.punch_cooldown > 0:
             return False, "Recargando golpe...", None
 
@@ -1838,6 +1863,10 @@ class GameRoom:
             return False, "Jugador inválido"
         if impostor.role != "impostor" or not impostor.alive:
             return False, "Solo el impostor vivo puede eliminar"
+        if getattr(impostor, "in_vent", None) is not None:
+            return False, "Debes salir de la ventilación para eliminar"
+        if getattr(target, "in_vent", None) is not None:
+            return False, "Objetivo protegido en ventilación"
         if impostor.kill_cooldown > 0:
             return (
                 False,
@@ -1942,12 +1971,51 @@ class GameRoom:
     def report_body_or_button(self, reporter_id, is_body=False, body_id=None):
         """Docstring for report_body_or_button."""
         if self.state != "PLAYING":
-            return False
+            return ActionResult(False, "Juego no activo")
         reporter = self.players.get(reporter_id)
         if not reporter or not reporter.alive:
-            return False
+            return ActionResult(False, "Solo jugadores vivos pueden llamar a reunión")
 
-        reason = "Cuerpo Reportado" if is_body else "Reunión de Emergencia"
+        if getattr(reporter, "in_vent", None) is not None:
+            return ActionResult(False, "No puedes llamar a reunión desde la ventilación")
+
+        if not is_body:
+            buttons_left = getattr(reporter, "emergency_buttons_left", 1)
+            if buttons_left <= 0:
+                return ActionResult(False, "Ya utilizaste tu botón de emergencia en esta partida")
+
+            eb_x = EMERGENCY_BUTTON.get("x", 1350)
+            eb_y = EMERGENCY_BUTTON.get("y", 700)
+            dist = math.hypot(reporter.x - eb_x, reporter.y - eb_y)
+            if dist > 180.0:
+                return ActionResult(False, "Demasiado lejos de la mesa de emergencia")
+
+            reporter.emergency_buttons_left = buttons_left - 1
+            reason = "Reunión de Emergencia"
+        else:
+            target_body = None
+            if body_id:
+                target_body = next(
+                    (b for b in self.dead_bodies if isinstance(b, dict) and b.get("id") == body_id),
+                    None,
+                )
+            elif self.dead_bodies:
+                alive_bodies = [b for b in self.dead_bodies if isinstance(b, dict)]
+                if alive_bodies:
+                    target_body = min(
+                        alive_bodies,
+                        key=lambda b: math.hypot(reporter.x - float(b.get("x", 0)), reporter.y - float(b.get("y", 0))),
+                    )
+
+            if not target_body or target_body.get("is_trapped_in_plant"):
+                return ActionResult(False, "Cuerpo no disponible para reportar")
+
+            dist = math.hypot(reporter.x - float(target_body.get("x", 0)), reporter.y - float(target_body.get("y", 0)))
+            if dist > 140.0:
+                return ActionResult(False, "Demasiado lejos del cuerpo")
+
+            reason = "Cuerpo Reportado"
+
         self.state = "MEETING"
         self.meeting = {
             "caller": reporter.name,
@@ -1956,7 +2024,7 @@ class GameRoom:
             "timer": 30.0,
             "result": None,
         }
-        return True
+        return ActionResult(True, "Reunión iniciada")
 
     def boost_revive(self, player_id, body_id):
         """Active revival boost from crewmate interaction"""
@@ -2062,6 +2130,7 @@ class GameRoom:
             p.completed_tasks = set()
             p.scored_tasks = set()
             p.current_task = None
+            p.emergency_buttons_left = 1
             p.in_vent = None
             p.invis_timer = 0.0
             p.disguise = None

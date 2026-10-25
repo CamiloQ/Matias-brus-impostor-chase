@@ -25,8 +25,7 @@ class SoundEngine {
     }
 
     playClick() {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'sine';
@@ -41,8 +40,7 @@ class SoundEngine {
     }
 
     playPanHit() {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const now = this.ctx.currentTime;
         // Metallic frying pan CLANG!
         const osc = this.ctx.createOscillator();
@@ -59,8 +57,7 @@ class SoundEngine {
     }
 
     playSwordHit() {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const now = this.ctx.currentTime;
         // Energy sword laser zap!
         const osc = this.ctx.createOscillator();
@@ -77,8 +74,7 @@ class SoundEngine {
     }
 
     playCatSound() {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const now = this.ctx.currentTime;
         // Zombie Cat hiss / meow
         const osc = this.ctx.createOscillator();
@@ -96,8 +92,7 @@ class SoundEngine {
     }
 
     playCloneBeam() {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const now = this.ctx.currentTime;
         // Sci-fi clone beam
         const osc = this.ctx.createOscillator();
@@ -114,8 +109,7 @@ class SoundEngine {
     }
 
     playItemPickup() {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const now = this.ctx.currentTime;
         // Star / Coin chime
         const osc = this.ctx.createOscillator();
@@ -132,8 +126,7 @@ class SoundEngine {
     }
 
     playKill() {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -149,8 +142,7 @@ class SoundEngine {
     }
 
     playAlarm() {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -167,8 +159,7 @@ class SoundEngine {
     }
 
     playTaskComplete() {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -186,8 +177,7 @@ class SoundEngine {
     }
 
     playVent() {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -203,8 +193,7 @@ class SoundEngine {
     }
 
     playRhythmNote(direction) {
-        if (!this.enabled) return;
-        this.init();
+        if (!this.canPlay()) return;
         const freqs = {
             'left': 261.63,   // C4
             'down': 329.63,   // E4

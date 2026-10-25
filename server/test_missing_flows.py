@@ -122,7 +122,9 @@ class TestMissingFlowsAndAuditFixes(unittest.TestCase):
         self.assertEqual(room.state, "PLAYING")
 
         # Second meeting: majority votes out impostor p3 -> shows verdict in MEETING_RESULT, then GAME_OVER
-        self.assertTrue(room.report_body_or_button("p1", is_body=True))
+        dummy_body = room.create_dead_body(Player("dummy", "Dummy", 1))
+        dummy_body["x"], dummy_body["y"] = p1.x, p1.y
+        self.assertTrue(room.report_body_or_button("p1", is_body=True, body_id=dummy_body["id"]))
         room.cast_vote("p1", "p3")
         room.cast_vote("p2", "p3")
         room.cast_vote("p3", "p1")
@@ -382,6 +384,103 @@ class TestMissingFlowsAndAuditFixes(unittest.TestCase):
                 srv.send_json = orig_send
 
         asyncio.run(_run())
+
+    def test_combat_attacks_blocked_while_in_vent_for_punch_and_kill(self):
+        """Attacker or impostor inside a vent cannot punch or kill; targets in vents are protected."""
+        room = GameRoom("ROOM-VENT-COMBAT")
+        p1 = room.add_player("p1", "Impostor")
+        p2 = room.add_player("p2", "Crewmate")
+        room.start_game()
+        p1.role = "impostor"
+        p2.role = "crewmate"
+
+        # Position both at vent 1
+        vent1 = VENTS[0]
+        p1.x, p1.y = vent1["x"], vent1["y"]
+        p2.x, p2.y = vent1["x"] + 20, vent1["y"] + 20
+
+        # Impostor enters vent
+        p1.in_vent = vent1["id"]
+
+        # Impostor tries to punch while in vent -> must fail
+        ok, msg, _ = room.try_punch("p1")
+        self.assertFalse(ok)
+        self.assertIn("ventilaci", msg.lower())
+
+        # Impostor tries to kill target while in vent -> must fail
+        ok, msg = room.try_kill("p1", "p2")
+        self.assertFalse(ok)
+        self.assertIn("ventilaci", msg.lower())
+        self.assertTrue(p2.alive)
+
+        # Impostor exits vent, but target enters vent
+        p1.in_vent = None
+        p2.in_vent = vent1["id"]
+
+        # Impostor tries to kill target who is in vent -> must fail
+        ok, msg = room.try_kill("p1", "p2")
+        self.assertFalse(ok)
+        self.assertIn("ventilaci", msg.lower())
+        self.assertTrue(p2.alive)
+
+    def test_emergency_meeting_requires_proximity_and_enforces_quota(self):
+        """Emergency meeting button requires being near cafeteria table and limits to 1 use per player."""
+        room = GameRoom("ROOM-EMERGENCY")
+        p1 = room.add_player("p1", "Caller")
+        room.add_player("p2", "Other")
+        room.start_game()
+
+        # p1 is far away in reactor (100, 100)
+        p1.x, p1.y = 100, 100
+        ok, _ = room.report_body_or_button("p1", is_body=False)
+        self.assertFalse(ok)
+        self.assertEqual(room.state, "PLAYING")
+
+        # p1 moves near cafeteria table (1350, 520)
+        p1.x, p1.y = 1350, 530
+        ok, _ = room.report_body_or_button("p1", is_body=False)
+        self.assertTrue(ok)
+        self.assertEqual(room.state, "MEETING")
+        self.assertEqual(p1.emergency_buttons_left, 0)
+
+        # Meeting finishes and game resumes
+        room.state = "PLAYING"
+        # p1 tries to use button again -> must fail because quota is 0
+        ok, msg = room.report_body_or_button("p1", is_body=False)
+        self.assertFalse(ok)
+        self.assertIn("utilizaste", msg.lower())
+        self.assertEqual(room.state, "PLAYING")
+
+    def test_body_report_requires_valid_untrapped_body_and_proximity(self):
+        """Reporting a dead body requires existing body within 140px and not being trapped in a carnivorous plant."""
+        room = GameRoom("ROOM-REPORT-BODY")
+        p1 = room.add_player("p1", "Reporter")
+        p2 = room.add_player("p2", "Victim")
+        room.start_game()
+
+        body = room.create_dead_body(p2)
+        body["x"] = 800.0
+        body["y"] = 800.0
+
+        # p1 is far away (100, 100)
+        p1.x, p1.y = 100.0, 100.0
+        ok, _ = room.report_body_or_button("p1", is_body=True, body_id=body["id"])
+        self.assertFalse(ok)
+        self.assertEqual(room.state, "PLAYING")
+
+        # Body trapped in carnivorous plant cannot be reported
+        p1.x, p1.y = 810.0, 810.0
+        body["is_trapped_in_plant"] = True
+        ok, _ = room.report_body_or_button("p1", is_body=True, body_id=body["id"])
+        self.assertFalse(ok)
+        self.assertEqual(room.state, "PLAYING")
+
+        # Untrapped body within distance succeeds
+        body["is_trapped_in_plant"] = False
+        ok, _ = room.report_body_or_button("p1", is_body=True, body_id=body["id"])
+        self.assertTrue(ok)
+        self.assertEqual(room.state, "MEETING")
+
 
 
 if __name__ == "__main__":
