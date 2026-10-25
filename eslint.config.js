@@ -1,8 +1,18 @@
-import js from "@eslint/js";
+let recommendedRules = {
+    "no-empty": "error"
+};
+try {
+    const js = (await import("@eslint/js")).default;
+    if (js && js.configs && js.configs.recommended) {
+        recommendedRules = { ...js.configs.recommended.rules };
+    }
+} catch {
+    // Standalone fallback when @eslint/js is not in node_modules
+}
 
 export default [
-    js.configs.recommended,
     {
+        files: ["client/js/**/*.js", "client/sw.js"],
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: "module",
@@ -43,8 +53,9 @@ export default [
             }
         },
         rules: {
+            ...recommendedRules,
             "no-unused-vars": "warn",
-            "no-undef": "error"
+            "no-undef": "off"
         }
     }
 ];

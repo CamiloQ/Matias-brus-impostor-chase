@@ -1,14 +1,14 @@
 // Service Worker for Matias & Brus: Impostor Chase
-const CACHE_NAME = 'impostor-chase-v8';
+const CACHE_NAME = 'impostor-chase-v9';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/style.css',
-  './js/crazygames.js?v=20',
-  './js/audio.js?v=20',
-  './js/network.js?v=20',
-  './js/game.js?v=20',
-  './js/ui.js?v=20',
+  './js/crazygames.js?v=21',
+  './js/audio.js?v=21',
+  './js/network.js?v=21',
+  './js/game.js?v=21',
+  './js/ui.js?v=21',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -50,7 +50,9 @@ self.addEventListener('fetch', (event) => {
   let pathname = url;
   try {
     pathname = new URL(url).pathname;
-  } catch (e) {}
+  } catch {
+    /* fallback to raw url */
+  }
 
   if (STATIC_ASSETS.test(pathname)) {
     // Respect ?v=N query strings for immediate cache-busting on deploy

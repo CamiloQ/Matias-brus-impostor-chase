@@ -617,7 +617,6 @@ class GameEngine {
 
             if (owner && owner.alive && !owner.in_vent) {
                 const ownerVx = owner.vx || 0;
-                const ownerVy = owner.vy || 0;
                 const ownerFacingRight = (ownerVx > 5) ? true : ((ownerVx < -5) ? false : brus.facingRight);
 
                 brus.targetX = owner.renderX - (ownerFacingRight ? 32 : -32);
@@ -780,7 +779,7 @@ class GameEngine {
         this.drawBrusCompanion(ctx);
 
         // 13.2 Koira-inspired Stealth shadow zone aura
-        this.drawStealthVignette(ctx, w, h);
+        this.drawStealthVignette(ctx);
 
         // 14. Floating Punch Particles & Sparks
         this.drawPunchEffects(ctx);
@@ -790,7 +789,7 @@ class GameEngine {
         this.drawAmbientDust(ctx);
 
         // 16. Dynamic Realistic Lighting (Sol y Bombillas colgantes con balanceo y bloom, haz de linterna)
-        this.drawLighting(ctx, w, h);
+        this.drawLighting(ctx);
 
         ctx.restore();
 
@@ -1085,10 +1084,10 @@ class GameEngine {
         this.drawCafeteriaMeetingTable(ctx, 1350, 700, 75, time);
 
         // 2. NEVERA 3D (REFRIGERATOR) at (1180, 380, w: 70, h: 65)
-        this.drawFridge(ctx, 1180, 380, 70, 65, time);
+        this.drawFridge(ctx, 1180, 380, 70, 65);
 
         // 3. ALACENA CON MICROONDAS Y PLATOS at (1730, 380, w: 70, h: 55)
-        this.drawMicrowave(ctx, 1730, 380, 70, 55, time);
+        this.drawMicrowave(ctx, 1730, 380, 70, 55);
 
         // 4. MESAS DE COMENSALES DE CAFETERÍA at (1000, 880) y (1570, 880)
 
@@ -1096,7 +1095,7 @@ class GameEngine {
         this.drawWashingMachine(ctx, 1930, 180, 60, 60, time);
 
         // 7. BARRAS BUFFET DE COMIDA at (980, 460) y (1580, 460)
-        this.drawBuffetCounters(ctx, time);
+        this.drawBuffetCounters(ctx);
 
         // 8. DORMITORIO / CAMAS DE MATIAS, BRUS Y EXTRA
         this.drawBeds(ctx);
@@ -1230,7 +1229,7 @@ class GameEngine {
         ctx.restore();
     }
 
-    drawFridge(ctx, x, y, w, h, time) {
+    drawFridge(ctx, x, y, w, h) {
         ctx.save();
 
         // Drop shadow
@@ -1298,7 +1297,7 @@ class GameEngine {
         ctx.restore();
     }
 
-    drawMicrowave(ctx, x, y, w, h, time) {
+    drawMicrowave(ctx, x, y, w, h) {
         ctx.save();
 
         // Countertop shelf
@@ -1441,7 +1440,7 @@ class GameEngine {
         ctx.restore();
     }
 
-    drawBuffetCounters(ctx, time) {
+    drawBuffetCounters(ctx) {
         // Cafeteria Buffet tables with Fried Eggs & Food
         for (let bx of [980, 1580]) {
             ctx.fillStyle = "#d35400";
@@ -1525,7 +1524,7 @@ class GameEngine {
         const time = Date.now() / 1000;
 
         // 1. Draw Doorway Entry Thresholds for Bedroom (Top Right)
-        this.drawBedroomDoorways(ctx, time);
+        this.drawBedroomDoorways(ctx);
 
         // 2. Draw all Map Obstacles with 3D Depth Shading
         this.map.obstacles.forEach(obs => {
@@ -1534,11 +1533,11 @@ class GameEngine {
             } else if (obs.type === "table") {
                 this.draw3DTable(ctx, obs, time);
             } else if (obs.type === "buffet") {
-                this.draw3DBuffet(ctx, obs, time);
+                this.draw3DBuffet(ctx, obs);
             } else if (obs.type === "fridge") {
                 this.draw3DFridge(ctx, obs);
             } else if (obs.type === "microwave") {
-                this.draw3DMicrowave(ctx, obs, time);
+                this.draw3DMicrowave(ctx, obs);
             } else if (obs.type === "sofa") {
                 this.draw3DSofa(ctx, obs);
             } else if (obs.type === "tv") {
@@ -1562,7 +1561,7 @@ class GameEngine {
         ctx.strokeRect(0, 0, this.map.width, this.map.height);
     }
 
-    drawBedroomDoorways(ctx, time) {
+    drawBedroomDoorways(ctx) {
         ctx.save();
         // West Entrance Doorway Threshold (x: 2050, y: 280 to 440)
         ctx.fillStyle = "rgba(0, 242, 254, 0.12)";
@@ -1572,7 +1571,6 @@ class GameEngine {
         ctx.strokeRect(2035, 280, 50, 160);
 
         // Animated neon entry chevrons pointing east
-        const flowOffset1 = (time * 40) % 20;
         ctx.fillStyle = "rgba(0, 242, 254, 0.7)";
         ctx.font = "bold 14px 'Orbitron', sans-serif";
         ctx.textAlign = "center";
@@ -1761,7 +1759,7 @@ class GameEngine {
         ctx.restore();
     }
 
-    draw3DBuffet(ctx, obs, time) {
+    draw3DBuffet(ctx, obs) {
         ctx.save();
         // Drop shadow
         ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
@@ -1851,7 +1849,7 @@ class GameEngine {
         ctx.restore();
     }
 
-    draw3DMicrowave(ctx, obs, time) {
+    draw3DMicrowave(ctx, obs) {
         ctx.save();
         ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
         ctx.fillRect(obs.x + 3, obs.y + 5, obs.w, obs.h);
@@ -2241,13 +2239,12 @@ class GameEngine {
         ctx.restore();
     }
 
-    drawLighting(ctx, w, h) {
+    drawLighting(ctx) {
         if (this.graphicsQuality === "low") {
             this.drawPhysicalBulbs(ctx);
             return;
         }
 
-        const me = this.players.get(this.myPlayerId);
         const time = Date.now() / 1000;
 
         // Reset offscreen lighting canvas
@@ -2929,7 +2926,11 @@ class GameEngine {
                 this.drawCharacterSprite(ctx, clone, { isClone: true });
             } catch (err) {
                 console.error("Error drawing clone impostor", clone.id, err);
-                try { ctx.restore(); } catch (e) {}
+                try {
+                    ctx.restore();
+                } catch {
+                    /* ignore restore error */
+                }
             }
         });
     }
@@ -3007,7 +3008,11 @@ class GameEngine {
                 this.drawCharacterSprite(ctx, p, { isClone: false });
             } catch (err) {
                 console.error("Error drawing player", p.id, err);
-                try { ctx.restore(); } catch (e) {}
+                try {
+                    ctx.restore();
+                } catch {
+                    /* ignore restore error */
+                }
             }
         });
     }
@@ -3851,7 +3856,7 @@ class GameEngine {
         ctx.restore();
     }
 
-    drawStealthVignette(ctx, w, h) {
+    drawStealthVignette(ctx) {
         const me = this.players.get(this.myPlayerId);
         if (!me || !me.alive || !me.in_stealth) return;
 

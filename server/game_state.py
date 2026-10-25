@@ -1307,6 +1307,7 @@ class GameRoom:
         self.state = "LOBBY"
         self.state_timer = 0.0
         self.winner = None
+        self.host_id = None
         self.dead_bodies = []
         self.meeting = {
             "caller": None,
@@ -1382,16 +1383,51 @@ class GameRoom:
         player.target_y = player.y
 
         self.players[player_id] = player
+        if (
+            not self.host_id
+            or self.host_id not in self.players
+            or not getattr(self.players[self.host_id], "connected", True)
+        ):
+            self.host_id = player_id
         self.empty_since = None
         return player
+
+    def is_host(self, player_id):
+        """Returns True if player_id is the active room host, promoting next connected player if current host disconnected."""
+        if (
+            not self.host_id
+            or self.host_id not in self.players
+            or not getattr(self.players[self.host_id], "connected", True)
+        ):
+            connected_ids = [
+                pid for pid, p in self.players.items() if getattr(p, "connected", True)
+            ]
+            self.host_id = (
+                connected_ids[0]
+                if connected_ids
+                else next(iter(self.players.keys()), None)
+            )
+        return self.host_id == player_id
 
     def remove_player(self, player_id):
         """Docstring for remove_player."""
         if player_id in self.players:
             del self.players[player_id]
+            if self.host_id == player_id:
+                connected_ids = [
+                    pid
+                    for pid, p in self.players.items()
+                    if getattr(p, "connected", True)
+                ]
+                self.host_id = (
+                    connected_ids[0]
+                    if connected_ids
+                    else next(iter(self.players.keys()), None)
+                )
             if self.state == "PLAYING":
                 self.check_game_over()
             if not self.players:
+                self.host_id = None
                 self.empty_since = time.time()
 
     def update_customization(self, player_id, hat_id, skin_id, weapon_id, gender=None, character=None):
@@ -1462,6 +1498,17 @@ class GameRoom:
         player = self.players.get(player_id)
         if not player or not player.alive:
             return
+        try:
+            vx = float(vx)
+            vy = float(vy)
+        except (TypeError, ValueError):
+            return
+        if not (math.isfinite(vx) and math.isfinite(vy)):
+            return
+        mag = math.hypot(vx, vy)
+        if mag > 1.0:
+            vx /= mag
+            vy /= mag
         speed = 280
         player.vx = vx * speed
         player.vy = vy * speed
@@ -2125,6 +2172,7 @@ class GameRoom:
         return {
             "type": "sync",
             "room_id": self.id,
+            "host_id": self.host_id,
             "state": self.state,
             "winner": self.winner,
             "episode": getattr(self, "episode", 1),

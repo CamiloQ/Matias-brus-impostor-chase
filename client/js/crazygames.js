@@ -116,7 +116,7 @@ class CrazyGamesService {
         }
         try {
             return this.sdk.game.inviteLink({ roomId });
-        } catch (e) {
+        } catch {
             const baseUrl = window.location.origin + window.location.pathname;
             return `${baseUrl}?room=${encodeURIComponent(roomId)}`;
         }

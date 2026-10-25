@@ -10,6 +10,7 @@ import struct
 import hashlib
 import base64
 import mimetypes
+import urllib.parse
 from collections import deque
 from pathlib import Path
 from game_state import (
@@ -92,6 +93,49 @@ def get_lan_ip():
         return ip
     except Exception:
         return "192.168.1.4"
+
+
+def is_allowed_origin(req_origin: str, req_host: str = "") -> bool:
+    """Validate Origin header using exact parsed hostname/netloc instead of prefix matching."""
+    if not req_origin:
+        return True
+    try:
+        parsed = urllib.parse.urlparse(req_origin.strip())
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or not parsed.netloc:
+        return False
+
+    hostname = parsed.hostname.lower()
+    netloc = parsed.netloc.lower()
+
+    # 1. Same-origin check against HTTP Host header (supports Railway preview URLs and custom domains)
+    if req_host:
+        clean_host = req_host.strip().lower()
+        host_only = clean_host.split(":")[0]
+        if netloc == clean_host or hostname == host_only:
+            return True
+
+    # 2. Exact localhost / loopback / LAN IP match (blocks localhost.evil.com and 127.0.0.1.evil.com)
+    if hostname in ("localhost", "127.0.0.1", "::1", get_lan_ip().lower()):
+        return True
+
+    # 3. Railway HTTPS domains (*.up.railway.app)
+    if parsed.scheme == "https" and (
+        hostname == "up.railway.app" or hostname.endswith(".up.railway.app")
+    ):
+        return True
+
+    # 4. Extra origins from ALLOWED_ORIGINS env var
+    extra_origins = [
+        o.strip().lower().rstrip("/")
+        for o in os.environ.get("ALLOWED_ORIGINS", "").split(",")
+        if o.strip()
+    ]
+    if req_origin.strip().lower().rstrip("/") in extra_origins:
+        return True
+
+    return False
 
 
 def make_ws_frame(message_str):
@@ -214,6 +258,7 @@ async def handle_ws_message(writer, msg_str):
 
         reconnect_id = data.get("reconnect_id")
         player = None
+        reclaimed_existing = False
         if reconnect_id and reconnect_id in room.players:
             # Reconnect takeover: close any previous stale socket for this player
             for old_w, old_info in list(CONNECTIONS.items()):
@@ -228,12 +273,18 @@ async def handle_ws_message(writer, msg_str):
             player.connected = True
             conn_info["player_id"] = reconnect_id
             player_id = reconnect_id
+            reclaimed_existing = True
 
         if not player:
-            # Check if there is an existing disconnected player with the same name in the room to reclaim!
+            # Check if there is an existing DISCONNECTED player with the same name in the room to reclaim!
             disconnected_player = next(
-                (p for p in room.players.values() if p.name.strip().lower() == player_name.strip().lower()),
-                None
+                (
+                    p
+                    for p in room.players.values()
+                    if not getattr(p, "connected", True)
+                    and p.name.strip().lower() == player_name.strip().lower()
+                ),
+                None,
             )
             if disconnected_player:
                 player = disconnected_player
@@ -250,13 +301,15 @@ async def handle_ws_message(writer, msg_str):
                 player.connected = True
                 conn_info["player_id"] = player.id
                 player_id = player.id
+                reclaimed_existing = True
 
         if player:
-            # If the room is in waiting/lobby state or player is returning, update character & gender
-            if room.state in ("waiting", "LOBBY") or not player.alive:
+            # Only allow character/name changes while in waiting/lobby/game_over state
+            if room.state in ("waiting", "LOBBY", "GAME_OVER"):
                 player.set_character(player_character, gender=player_gender)
                 if player_name:
                     player.name = player_name
+            room.is_host(player.id)
         else:
             if len(room.players) >= 12:
                 await send_json(
@@ -280,6 +333,7 @@ async def handle_ws_message(writer, msg_str):
             {
                 "type": "joined_room",
                 "room_id": target_room_id,
+                "host_id": room.host_id,
                 "player_id": player_id,
                 "room_state": room.state,
                 "player": player.to_dict(is_self=True),
@@ -302,8 +356,8 @@ async def handle_ws_message(writer, msg_str):
             },
         )
 
-        # HOT-JOIN: If game is already in progress, drop player straight in as active crewmate!
-        if room.state == "PLAYING" and not reconnect_id:
+        # HOT-JOIN: If game is already in progress and this is a genuinely new player, drop straight in as crewmate!
+        if room.state == "PLAYING" and not reclaimed_existing:
             player.assign_tasks(TASK_STATIONS)
             player.role = "crewmate"
             player.alive = True
@@ -322,8 +376,8 @@ async def handle_ws_message(writer, msg_str):
                     "players_count": len(room.players),
                 },
             )
-        elif room.state in ("PLAYING", "MEETING", "MEETING_RESULT") and reconnect_id:
-            # Reconnected player, just resend game_started with their existing state
+        elif room.state in ("PLAYING", "MEETING", "MEETING_RESULT") and reclaimed_existing:
+            # Reconnected player: preserve existing role, alive state, position, and tasks
             await send_json(
                 writer,
                 {
@@ -377,7 +431,7 @@ async def handle_ws_message(writer, msg_str):
                 )
 
     elif msg_type == "start_game":
-        if room and room.state in ("LOBBY", "GAME_OVER"):
+        if room and room.state in ("LOBBY", "GAME_OVER") and room.is_host(player_id):
             if room.start_game():
                 for w, info in list(CONNECTIONS.items()):
                     if info.get("room_id") == room_id:
@@ -398,7 +452,7 @@ async def handle_ws_message(writer, msg_str):
                         )
 
     elif msg_type == "return_to_lobby":
-        if room:
+        if room and room.state == "GAME_OVER" and room.is_host(player_id):
             room.return_to_lobby()
             await broadcast_to_room(
                 room_id,
@@ -411,8 +465,13 @@ async def handle_ws_message(writer, msg_str):
 
     elif msg_type == "input":
         if room and room.state == "PLAYING":
-            vx = float(data.get("vx", 0))
-            vy = float(data.get("vy", 0))
+            try:
+                vx = float(data.get("vx", 0))
+                vy = float(data.get("vy", 0))
+            except (TypeError, ValueError):
+                return
+            if not (math.isfinite(vx) and math.isfinite(vy)):
+                return
             room.update_player_input(player_id, vx, vy)
 
     elif msg_type == "kill":
@@ -593,26 +652,13 @@ async def handle_connection(reader, writer):
                 headers[k.strip().lower()] = v.strip()
 
         req_origin = headers.get("origin", "")
-        allowed_origins = [
-            "https://matias-brus-impostor-chase-production.up.railway.app",
-            "http://localhost",
-            "http://127.0.0.1",
-            f"http://{get_lan_ip()}",
-        ]
+        req_host = headers.get("host", "")
+        origin_ok = is_allowed_origin(req_origin, req_host)
 
-        is_allowed_origin = False
-        if not req_origin:
-            is_allowed_origin = True
-        else:
-            for ao in allowed_origins:
-                if req_origin.startswith(ao):
-                    is_allowed_origin = True
-                    break
-
-        cors_header = f"Access-Control-Allow-Origin: {req_origin if is_allowed_origin else 'null'}\r\n"
+        cors_header = f"Access-Control-Allow-Origin: {req_origin if origin_ok else 'null'}\r\n"
 
         if headers.get("upgrade", "").lower() == "websocket":
-            if not is_allowed_origin:
+            if not origin_ok:
                 writer.close()
                 return
             sec_key = headers.get("sec-websocket-key")

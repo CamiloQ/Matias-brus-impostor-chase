@@ -228,6 +228,161 @@ class TestMissingFlowsAndAuditFixes(unittest.TestCase):
         self.assertEqual(len(room.dead_bodies), 1)
         self.assertEqual(room.dead_bodies[0]["victim_id"], "p2")
 
+    def test_origin_validation_blocks_startswith_spoofing_and_allows_preview_domains(self):
+        """Origin check must reject localhost.evil.com and allow Railway preview/same-host origins."""
+        import server as srv
+        self.assertTrue(srv.is_allowed_origin(""))
+        self.assertTrue(srv.is_allowed_origin("http://localhost:3000"))
+        self.assertTrue(srv.is_allowed_origin("http://127.0.0.1:8080"))
+        self.assertTrue(srv.is_allowed_origin("https://matias-brus-impostor-chase-production.up.railway.app"))
+        self.assertTrue(srv.is_allowed_origin("https://app-preview-pr-42.up.railway.app"))
+        self.assertTrue(srv.is_allowed_origin("https://custom.example.com", req_host="custom.example.com"))
+        self.assertFalse(srv.is_allowed_origin("http://localhost.evil.com"))
+        self.assertFalse(srv.is_allowed_origin("http://127.0.0.1.evil.com"))
+        self.assertFalse(srv.is_allowed_origin("https://evil.com", req_host="matias-brus-impostor-chase-production.up.railway.app"))
+
+    def test_update_player_input_clamps_speed_and_rejects_nan_inf(self):
+        """update_player_input must clamp vector magnitude to 1.0 (max speed 280) and reject NaN/Inf."""
+        import math
+        room = GameRoom("SPEED_TEST")
+        p1 = room.add_player("p1", "Runner")
+        room.start_game()
+
+        room.update_player_input("p1", 1000.0, 0.0)
+        self.assertAlmostEqual(math.hypot(p1.vx, p1.vy), 280.0, places=3)
+
+        room.update_player_input("p1", 100.0, 100.0)
+        self.assertAlmostEqual(math.hypot(p1.vx, p1.vy), 280.0, places=3)
+
+        orig_x, orig_y = p1.x, p1.y
+        room.update_player_input("p1", float("nan"), 0.0)
+        room.update_player_input("p1", 0.0, float("inf"))
+        room.tick(0.1)
+        self.assertTrue(math.isfinite(p1.x) and math.isfinite(p1.y))
+        self.assertTrue(math.isfinite(p1.vx) and math.isfinite(p1.vy))
+
+    def test_join_room_prevents_connected_name_hijack_and_preserves_disconnected_role_alive(self):
+        """Joining with an active player's name must not hijack their session or reset role/alive on reconnect."""
+        import asyncio
+        import json
+        import server as srv
+
+        class DummyW:
+            def __init__(self):
+                self.closed = False
+                self.msgs = []
+            def write(self, b):
+                pass
+            async def drain(self):
+                pass
+            def close(self):
+                self.closed = True
+            async def wait_closed(self):
+                pass
+
+        async def _run():
+            srv.ROOMS.clear()
+            srv.CONNECTIONS.clear()
+            w1 = DummyW()
+            w2 = DummyW()
+            srv.CONNECTIONS[w1] = {"id": "p1", "player_id": "p1", "room_id": None}
+            srv.CONNECTIONS[w2] = {"id": "p2", "player_id": "p2", "room_id": None}
+
+            orig_send = srv.send_json
+            async def mock_send(w, d):
+                w.msgs.append(d)
+            srv.send_json = mock_send
+            try:
+                await srv.handle_ws_message(w1, json.dumps({"type": "join_room", "room_id": "HIJACK_ROOM", "name": "Matias"}))
+                room = srv.ROOMS["HIJACK_ROOM"]
+                room.start_game()
+                p1 = room.players["p1"]
+                p1.role = "impostor"
+                p1.alive = True
+                p1.connected = True
+
+                # Attacker w2 tries to join with name "Matias" while p1 is connected
+                await srv.handle_ws_message(w2, json.dumps({"type": "join_room", "room_id": "HIJACK_ROOM", "name": "Matias"}))
+                self.assertFalse(w1.closed, "Connected player's socket must NOT be closed by same-name joiner")
+                self.assertEqual(p1.role, "impostor", "Connected impostor must NOT be reset to crewmate")
+                self.assertIn("p2", room.players, "Second joiner must be added as a separate disambiguated player")
+                self.assertNotEqual(room.players["p2"].name, "Matias")
+
+                # Now simulate p1 genuinely disconnecting while dead/impostor and reconnecting by name
+                p1.connected = False
+                p1.alive = False
+                w3 = DummyW()
+                srv.CONNECTIONS[w3] = {"id": "p3", "player_id": "p3", "room_id": None}
+                await srv.handle_ws_message(w3, json.dumps({"type": "join_room", "room_id": "HIJACK_ROOM", "name": "Matias"}))
+                self.assertEqual(srv.CONNECTIONS[w3]["player_id"], "p1", "Disconnected player should be reclaimed by name")
+                self.assertEqual(p1.role, "impostor", "Reclaimed player's role must be preserved")
+                self.assertFalse(p1.alive, "Reclaimed dead player must NOT be revived by hot-join")
+            finally:
+                srv.send_json = orig_send
+
+        asyncio.run(_run())
+
+    def test_host_and_state_authorization_for_start_game_and_return_to_lobby(self):
+        """Only the host can start_game or return_to_lobby, and return_to_lobby is blocked during PLAYING."""
+        import asyncio
+        import json
+        import server as srv
+
+        class DummyW:
+            def __init__(self):
+                self.msgs = []
+            def write(self, b):
+                pass
+            async def drain(self):
+                pass
+            def close(self):
+                pass
+            async def wait_closed(self):
+                pass
+
+        async def _run():
+            srv.ROOMS.clear()
+            srv.CONNECTIONS.clear()
+            w_host = DummyW()
+            w_guest = DummyW()
+            srv.CONNECTIONS[w_host] = {"id": "host_1", "player_id": "host_1", "room_id": None}
+            srv.CONNECTIONS[w_guest] = {"id": "guest_2", "player_id": "guest_2", "room_id": None}
+
+            orig_send = srv.send_json
+            async def mock_send(w, d):
+                w.msgs.append(d)
+            srv.send_json = mock_send
+            try:
+                await srv.handle_ws_message(w_host, json.dumps({"type": "join_room", "room_id": "AUTH_ROOM", "name": "Host"}))
+                await srv.handle_ws_message(w_guest, json.dumps({"type": "join_room", "room_id": "AUTH_ROOM", "name": "Guest"}))
+                room = srv.ROOMS["AUTH_ROOM"]
+                self.assertEqual(room.host_id, "host_1")
+
+                # Guest tries to start_game -> must be ignored
+                await srv.handle_ws_message(w_guest, json.dumps({"type": "start_game"}))
+                self.assertEqual(room.state, "LOBBY")
+
+                # Host starts game -> succeeds
+                await srv.handle_ws_message(w_host, json.dumps({"type": "start_game"}))
+                self.assertEqual(room.state, "PLAYING")
+
+                # Guest OR Host tries to return_to_lobby mid-game (PLAYING) -> must be blocked
+                await srv.handle_ws_message(w_guest, json.dumps({"type": "return_to_lobby"}))
+                self.assertEqual(room.state, "PLAYING")
+                await srv.handle_ws_message(w_host, json.dumps({"type": "return_to_lobby"}))
+                self.assertEqual(room.state, "PLAYING")
+
+                # When GAME_OVER, guest still cannot return_to_lobby while host is connected, but host can
+                room.state = "GAME_OVER"
+                await srv.handle_ws_message(w_guest, json.dumps({"type": "return_to_lobby"}))
+                self.assertEqual(room.state, "GAME_OVER")
+                await srv.handle_ws_message(w_host, json.dumps({"type": "return_to_lobby"}))
+                self.assertEqual(room.state, "LOBBY")
+            finally:
+                srv.send_json = orig_send
+
+        asyncio.run(_run())
+
 
 if __name__ == "__main__":
     unittest.main()

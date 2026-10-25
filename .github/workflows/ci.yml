@@ -29,7 +29,13 @@ jobs:
 
       - name: Validate Client JavaScript Syntax
         run: |
+          node --check client/js/crazygames.js
           node --check client/js/network.js
           node --check client/js/game.js
           node --check client/js/ui.js
           node --check client/js/audio.js
+          node --check client/sw.js
+
+      - name: Run Client ESLint
+        run: |
+          npx --yes eslint client/js/*.js client/sw.js

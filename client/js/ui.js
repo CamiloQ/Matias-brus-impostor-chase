@@ -141,7 +141,7 @@ class UIManager {
             lastTouchTime = Date.now();
             handler();
         });
-        button.addEventListener("click", (e) => {
+        button.addEventListener("click", () => {
             if (Date.now() - lastTouchTime < 400) return;
             if (button.disabled) return;
             handler();
@@ -368,7 +368,9 @@ class UIManager {
                 try {
                     localStorage.setItem("chase_character", this.selectedCharacter);
                     localStorage.setItem("chase_gender", this.selectedGender);
-                } catch (e) {}
+                } catch {
+                    /* ignore storage error */
+                }
 
                 this.vibrate(20);
                 if (window.soundEngine) window.soundEngine.playClick();
@@ -387,7 +389,9 @@ class UIManager {
                 btnGenderGirl.classList.remove("active");
                 try {
                     localStorage.setItem("chase_gender", "boy");
-                } catch (e) {}
+                } catch {
+                    /* ignore storage error */
+                }
                 this.vibrate(15);
                 window.soundEngine.playClick();
             });
@@ -398,7 +402,9 @@ class UIManager {
                 btnGenderBoy.classList.remove("active");
                 try {
                     localStorage.setItem("chase_gender", "girl");
-                } catch (e) {}
+                } catch {
+                    /* ignore storage error */
+                }
                 this.vibrate(15);
                 window.soundEngine.playClick();
             });
@@ -785,7 +791,7 @@ class UIManager {
                 });
                 listEl.appendChild(card);
             });
-        } catch (err) {
+        } catch {
             listEl.innerHTML = '<div class="no-rooms-msg">Error al buscar salas. Intenta de nuevo.</div>';
         }
     }
@@ -846,7 +852,9 @@ class UIManager {
                     this.selectedCharacter = data.player.character;
                     try {
                         localStorage.setItem("chase_character", this.selectedCharacter);
-                    } catch (e) {}
+                    } catch {
+                        /* ignore storage error */
+                    }
                 }
             }
             this.renderWardrobeCatalog();
@@ -1178,7 +1186,9 @@ class UIManager {
             localStorage.setItem("chase_hat", this.selectedHat);
             localStorage.setItem("chase_skin", this.selectedSkin);
             localStorage.setItem("chase_weapon", this.selectedWeapon);
-        } catch (e) {}
+        } catch {
+            /* ignore storage error */
+        }
         window.network.send({
             type: "update_wardrobe",
             character: this.selectedCharacter,

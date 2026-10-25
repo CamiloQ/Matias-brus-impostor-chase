@@ -5,7 +5,7 @@ class NetworkClient {
         try {
             this.myPlayerId = sessionStorage.getItem("chase_player_id") || null;
             this.currentRoom = sessionStorage.getItem("chase_room_id") || null;
-        } catch (e) {
+        } catch {
             this.myPlayerId = null;
             this.currentRoom = null;
         }
@@ -127,7 +127,9 @@ class NetworkClient {
                 try {
                     sessionStorage.setItem("chase_player_id", msg.player_id);
                     sessionStorage.setItem("chase_room_id", msg.room_id);
-                } catch (e) {}
+                } catch {
+                    /* ignore storage error */
+                }
                 this.emit("joined_room", msg);
                 break;
             case "player_joined":
